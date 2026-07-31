@@ -4,19 +4,23 @@ These instructions apply to the entire `deribit-starbase-api` repository.
 
 ## Mandatory project context
 
-Before planning, editing, or running implementation commands, read both files completely:
+Before planning, editing, or running implementation commands, read both local files
+completely:
 
-- `../deribit-api/STARBASE_IMPLEMENTATION_AGENT.md`
-- `../deribit-api/STARBASE_IMPLEMENTATION_TRACKER.md`
+- `docs/implementation-contract.md`
+- `docs/implementation-status.md`
 
-Treat the first file as the stable technical specification. Treat the second as the
-canonical mutable execution state. Do not create another independently maintained tracker.
+Treat the first file as the stable technical contract and the second as the canonical
+mutable execution state. Do not create another independently maintained tracker. Before a
+wire-layout or protocol-behavior change, also read `docs/protocol-source-review.md` and
+`docs/schema-manifest.md` completely and revalidate the current official sources.
 
 When changing a downstream consumer, read and obey that repository's own guidance
 before making changes there.
 
-If any required file is unavailable, stop and report the missing path instead of guessing
-at the architecture or current task.
+The legacy Starbase Markdown files in `../deribit-api` are compatibility pointers only;
+this repository is authoritative. If any required local file is unavailable, stop and
+report the missing path instead of guessing at the architecture or current task.
 
 ## Persistent execution workflow
 
@@ -24,18 +28,22 @@ At the beginning of every implementation turn:
 
 1. Inspect `git status --short` in this repository and any dependency or consumer repository explicitly placed in scope as
    applicable. Preserve unrelated and user-owned changes.
-2. Read the tracker checkpoint.
-3. Resume its single `IN_PROGRESS` task. If none exists, select the first listed `TODO`
-   task whose dependencies are `DONE`.
-4. Mark the selected task `IN_PROGRESS` and update the checkpoint before changing
-   production code.
-5. Work on only that task until it is `DONE` or genuinely `BLOCKED`.
-6. Record test evidence, changed files, verification commands/results, blockers, and the
-   exact next action in the tracker.
-7. Continue to the next dependency-ready task while safe work remains.
+2. Read the status checkpoint and its exact restart procedure.
+3. While the status is `PAUSED`, revalidate the upstream specification first. If it still
+   lacks an exact REST/SBE order-identity bridge, record the evidence and do not start a
+   downstream task. A separately documented maintenance goal may run during the pause only
+   when the user explicitly requests that goal; it must not alter protocol behavior or
+   claim to resolve the pause.
+4. Once the gate is genuinely resolved, resume the single recorded active task or select
+   the first dependency-ready remaining task.
+5. Mark that task active and update the checkpoint before changing production behavior.
+6. Work on only that task until it is done or genuinely blocked.
+7. Record RED/passing evidence, changed files, verification commands/results, blockers,
+   and the exact next action in `docs/implementation-status.md`.
+8. Continue to the next dependency-ready task only while safe work remains.
 
-Before ending a turn or approaching a context boundary, update the tracker. The filesystem
-tracker, not the conversation summary, is the authoritative handoff.
+Before ending a turn or approaching a context boundary, update the local status file. The
+filesystem handoff, not the conversation summary, is authoritative.
 
 Do not make Git commits, create remotes, or push changes unless the user asks.
 
@@ -49,7 +57,8 @@ For every new behavior:
 4. Run the focused test and affected regression tests.
 5. Add relevant boundary, corrupt-input, lifecycle, and state-transition tests.
 6. For a hot path, run the required post-warm-up allocation check.
-7. Record concise RED and passing evidence in the tracker before marking the task `DONE`.
+7. Record concise RED and passing evidence in the status file before marking the task
+   done.
 
 A successful compilation alone does not complete a behavioral task. Prefer byte fixtures,
 fake clocks, scripted channels, and loopback peers before relying on a live Starbase
@@ -95,7 +104,7 @@ environment.
 
 ## Completion
 
-The implementation is complete only when the tracker has no required `TODO`,
-`IN_PROGRESS`, or `BLOCKED` tasks, the acceptance criteria in the technical specification
-have been audited, the relevant builds/tests pass, and required live validation is either
+The implementation is complete only when the local status file has no required waiting,
+active, TODO, or blocked work, the acceptance criteria in the implementation contract have
+been audited, the relevant builds/tests pass, and required live validation is either
 recorded or explicitly reported as unavailable without claiming production readiness.

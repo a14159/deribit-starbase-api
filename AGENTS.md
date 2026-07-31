@@ -22,6 +22,17 @@ The legacy Starbase Markdown files in `../deribit-api` are compatibility pointer
 this repository is authoritative. If any required local file is unavailable, stop and
 report the missing path instead of guessing at the architecture or current task.
 
+After reading the required project documents, read `docs/local-environment.md` completely
+if it exists. It is an optional, ignored workstation note for local launch commands only;
+it is not project state and must never override the contract or status checkpoint. Never
+copy its machine-specific values into tracked files.
+
+Tracked documentation and examples must use repository-relative paths, commands resolved
+through `PATH`, or the checked-in Maven Wrapper. Do not record absolute home-directory,
+IDE-installation, JDK-installation, Maven-installation, or temporary-directory paths in a
+tracked file. Tool names, versions, portable environment-variable names, and placeholder
+paths are allowed when they improve reproducibility.
+
 ## Persistent execution workflow
 
 At the beginning of every implementation turn:

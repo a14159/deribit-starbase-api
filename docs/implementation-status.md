@@ -6,21 +6,51 @@
 | --- | --- |
 | Overall state | **PAUSED — awaiting a corrected or clarified Deribit specification** |
 | Pause date | 2026-07-31 |
-| Active task | None |
+| Active task | `DOC-PRIVACY`, portable local-environment guidance and Git-history sanitization |
 | Blocking task | `ORD-07`, exact REST-to-SBE open-order reconciliation |
 | Last completed task | `TEST-MIGRATION`, dependency-free Surefire POJO test migration |
 | Local verification | Two consecutive `mvn clean test` runs: 292 tests, 0 failures, 0 errors, 0 skipped; Surefire 3.5.4 `JUnit3Provider` |
 | Production readiness | **No** — component assembly, downstream consumer integration, joint builds, and private live validation remain |
-| Exact next action | When Deribit publishes a new release, compare the new OpenAPI, SBE XMLs, binary docs, changelog, and SDK against the pins below before changing protocol code |
+| Exact next action | Complete the explicitly requested `DOC-PRIVACY` maintenance goal, then return to the paused specification-review checkpoint |
 
-There is intentionally no `IN_PROGRESS` item. Do not start downstream work merely because
-the local suite is green. First resolve the protocol identity gate described below, or get
-an explicit scope decision that changes the recovery requirement. The independently
-approved `TEST-MIGRATION` maintenance goal was completed during this pause without
-resuming protocol work.
+Only the explicitly requested `DOC-PRIVACY` maintenance goal is in progress. Do not start
+downstream protocol work merely because the local suite is green. First resolve the
+protocol identity gate described below, or get an explicit scope decision that changes
+the recovery requirement. `DOC-PRIVACY` changes documentation, portable build tooling,
+and repository history only; it must not resume protocol work or alter production
+behavior.
 
 The independently approved `TEST-MIGRATION` maintenance goal is complete. It did not
 resume protocol work, alter production sources, or resolve `SPEC-01`/`ORD-07`.
+
+## `DOC-PRIVACY` maintenance handoff
+
+The user explicitly approved this repository-maintenance goal during the protocol pause.
+It does not change production sources, protocol behavior, or the `SPEC-01`/`ORD-07` gate.
+
+Work completed before the history rewrite:
+
+- tracked documentation now uses the Maven Wrapper or portable commands instead of
+  workstation-specific launchers;
+- Maven Wrapper 3.3.4 pins Maven 3.9.16 and verifies the distribution SHA-256;
+- `.gitignore` excludes `docs/local-environment.md`, while a tracked example documents
+  its strictly non-authoritative scope;
+- `.worktreeinclude` carries that ignored note into Codex-managed local worktrees;
+- tracked Codex environment guidance configures JDK 23 and primes the wrapper during the
+  cloud setup phase; and
+- `AGENTS.md` forbids machine-specific paths in tracked documentation.
+
+Verification on 2026-08-01:
+
+- `.\mvnw.cmd -B -ntp clean test`: 292 tests, 0 failures, 0 errors, 0 skipped;
+- the Maven 3.9.16 archive matched its published SHA-512 before its SHA-256 was pinned;
+- all 21 local Markdown link targets resolved;
+- `git diff --check` passed apart from line-ending conversion notices; and
+- the public Markdown privacy scan found no home, IDE, local JDK, or local Maven paths.
+
+Remaining maintenance action: commit the scoped files, rewrite every reachable commit
+containing the audited machine-specific strings, push `main` with the recorded remote-SHA
+lease, rescan the rewritten history, and record the final remote verification here.
 
 ## `TEST-MIGRATION` completion handoff
 
@@ -47,9 +77,12 @@ observes both already-asserted states. The focused class then passed six consecu
 Final verification on 2026-07-31:
 
 ```powershell
-$env:JAVA_HOME='<local-jdk-home>'
-& 'mvn' clean test
+.\mvnw.cmd clean test
 ```
+
+This is the current portable reproduction command for the recorded test run. The original
+workstation-specific launcher is intentionally retained only in the ignored local
+environment note.
 
 - Two consecutive clean runs: 292 tests, 0 failures, 0 errors, 0 skipped, using
   `org.apache.maven.surefire.junit.JUnit3Provider`.
@@ -231,19 +264,27 @@ unblock integration.
 
 ## Reproducible local verification
 
-```powershell
-$env:JAVA_HOME='<local-jdk-home>'
-& 'mvn' clean test
-```
+Use JDK 23 or newer. The Maven Wrapper pins Maven 3.9.16 and verifies the downloaded
+distribution checksum.
 
-The source targets Java 23 bytecode even when Maven runs on the recorded JDK 25.0.2.
-Focused example:
+Windows:
 
 ```powershell
-& 'mvn' "-Dtest=OpenOrderRecoveryCacheTest,StarbaseOpenOrdersEndpointTest,StarbaseRestTransportTest" test
+.\mvnw.cmd clean test
 ```
 
-At pause time the repository was on `main`, had only the initial guidance commit
-`e6bc472`, had no configured remote, and all Maven/source/test/documentation implementation
-files were still untracked. Do not assume the work is safely preserved in Git history
-until the user explicitly chooses to commit it.
+Linux or macOS:
+
+```sh
+./mvnw clean test
+```
+
+The source targets Java 23 bytecode when Maven runs on any compatible JDK. Focused
+Windows example:
+
+```powershell
+.\mvnw.cmd "-Dtest=OpenOrderRecoveryCacheTest,StarbaseOpenOrdersEndpointTest,StarbaseRestTransportTest" test
+```
+
+Always inspect the current branch, worktree, and remotes directly when resuming; historical
+machine-local Git state is not part of this checkpoint.

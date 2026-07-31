@@ -26,6 +26,8 @@ Start with:
   rollout assumptions, and current discrepancies.
 - [Schema manifest](docs/schema-manifest.md) — pinned XML hashes and every implemented
   hardcoded wire template.
+- [Environment setup](docs/codex-environment.md) — portable local, Codex worktree, and
+  Codex cloud-container setup.
 
 ## Implemented so far
 
@@ -47,10 +49,19 @@ listed in [Implementation status](docs/implementation-status.md#known-assembly-a
 
 ## Build
 
-Use a JDK 23 or newer installation:
+Use a JDK 23 or newer installation. The checked-in Maven Wrapper pins Maven 3.9.16, so a
+separate Maven or IDE installation is not required.
+
+On Windows:
 
 ```powershell
-mvn clean test
+.\mvnw.cmd clean test
+```
+
+On Linux or macOS:
+
+```sh
+./mvnw clean test
 ```
 
 The tests have no framework dependency. Surefire 3.5.4 auto-detects
@@ -62,6 +73,11 @@ Surefire configuration.
 Two consecutive clean local runs on 2026-07-31 each passed 292 tests with no failures,
 errors, or skips. No live private Starbase environment was available, so this result
 establishes local behavior only.
+
+For optional machine-specific launch notes, copy
+[`docs/local-environment.example.md`](docs/local-environment.example.md) to the ignored
+`docs/local-environment.md`. Do not put credentials in that file. Codex cloud setup is
+described in [Environment setup](docs/codex-environment.md).
 
 ## Scope boundaries
 

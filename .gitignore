@@ -1,0 +1,5 @@
+/target/
+/.starbase-source-cache/
+/.idea/
+*.iml
+/docs/local-environment.md

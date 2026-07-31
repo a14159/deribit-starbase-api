@@ -26,9 +26,6 @@ Start with:
   rollout assumptions, and current discrepancies.
 - [Schema manifest](docs/schema-manifest.md) — pinned XML hashes and every implemented
   hardcoded wire template.
-- [Dependency-free test migration goal](docs/goals/migrate-junit-to-surefire-pojo.md) —
-  completed migration record and parity evidence for the Surefire POJO convention used
-  by downstream consumers.
 
 ## Implemented so far
 
@@ -61,13 +58,6 @@ The tests have no framework dependency. Surefire 3.5.4 auto-detects
 class and its public zero-argument `test*` methods. Test assertions come from the local
 test-only `TestAssertions` utility, and Java assertions are enabled explicitly by the
 Surefire configuration.
-
-The exact recorded verification command was:
-
-```powershell
-$env:JAVA_HOME='<local-jdk-home>'
-& 'mvn' clean test
-```
 
 Two consecutive clean local runs on 2026-07-31 each passed 292 tests with no failures,
 errors, or skips. No live private Starbase environment was available, so this result

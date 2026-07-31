@@ -59,11 +59,6 @@ $env:JAVA_HOME='<local-jdk-home>'
 - `git diff --check`: passed, with only the pre-existing `AGENTS.md` line-ending warning.
 - Documentation: all 19 local Markdown links resolved after the final handoff edits.
 
-Changed scope was `pom.xml`, `README.md`, this status, the migration goal, all 63
-`*Test.java` classes, `BufferAssertions.java`, and the new `TestAssertions.java`. No
-`src/main` file or sibling repository was changed. Full phase-by-phase evidence and the
-conversion ledger remain in [the completed goal plan](goals/migrate-junit-to-surefire-pojo.md).
-
 ## Why work is paused
 
 The local SBE order store is keyed by exact signed 64-bit `orderId` and `clientOrderId`.

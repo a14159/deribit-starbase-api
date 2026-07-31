@@ -6,29 +6,28 @@
 | --- | --- |
 | Overall state | **PAUSED — awaiting a corrected or clarified Deribit specification** |
 | Pause date | 2026-07-31 |
-| Active task | `DOC-PRIVACY`, portable local-environment guidance and Git-history sanitization |
+| Active task | None |
 | Blocking task | `ORD-07`, exact REST-to-SBE open-order reconciliation |
-| Last completed task | `TEST-MIGRATION`, dependency-free Surefire POJO test migration |
-| Local verification | Two consecutive `mvn clean test` runs: 292 tests, 0 failures, 0 errors, 0 skipped; Surefire 3.5.4 `JUnit3Provider` |
+| Last completed task | `DOC-PRIVACY`, portable environments and reachable-history sanitization |
+| Local verification | Maven Wrapper 3.9.16: 292 tests, 0 failures, 0 errors, 0 skipped; public and fetched-remote history privacy scans passed |
 | Production readiness | **No** — component assembly, downstream consumer integration, joint builds, and private live validation remain |
-| Exact next action | Complete the explicitly requested `DOC-PRIVACY` maintenance goal, then return to the paused specification-review checkpoint |
+| Exact next action | Ask GitHub Support to purge the unreferenced pre-rewrite cached views; protocol work remains paused pending the next Deribit specification review |
 
-Only the explicitly requested `DOC-PRIVACY` maintenance goal is in progress. Do not start
-downstream protocol work merely because the local suite is green. First resolve the
-protocol identity gate described below, or get an explicit scope decision that changes
-the recovery requirement. `DOC-PRIVACY` changes documentation, portable build tooling,
-and repository history only; it must not resume protocol work or alter production
-behavior.
+There is intentionally no `IN_PROGRESS` implementation item. Do not start downstream
+protocol work merely because the local suite is green. First resolve the protocol identity
+gate described below, or get an explicit scope decision that changes the recovery
+requirement. The explicitly approved `DOC-PRIVACY` maintenance goal completed without
+resuming protocol work or altering production behavior.
 
 The independently approved `TEST-MIGRATION` maintenance goal is complete. It did not
 resume protocol work, alter production sources, or resolve `SPEC-01`/`ORD-07`.
 
-## `DOC-PRIVACY` maintenance handoff
+## `DOC-PRIVACY` completion handoff
 
 The user explicitly approved this repository-maintenance goal during the protocol pause.
 It does not change production sources, protocol behavior, or the `SPEC-01`/`ORD-07` gate.
 
-Work completed before the history rewrite:
+Completed work:
 
 - tracked documentation now uses the Maven Wrapper or portable commands instead of
   workstation-specific launchers;
@@ -38,7 +37,11 @@ Work completed before the history rewrite:
 - `.worktreeinclude` carries that ignored note into Codex-managed local worktrees;
 - tracked Codex environment guidance configures JDK 23 and primes the wrapper during the
   cloud setup phase; and
-- `AGENTS.md` forbids machine-specific paths in tracked documentation.
+- `AGENTS.md` forbids machine-specific paths in tracked documentation;
+- a verified local recovery bundle preserves the pre-rewrite history off-repository;
+- every affected reachable Markdown blob was rewritten with portable placeholders;
+- `main` was force-pushed only after its explicit remote-SHA lease matched; and
+- the fetched remote advertises one clean branch and no tags.
 
 Verification on 2026-08-01:
 
@@ -46,11 +49,14 @@ Verification on 2026-08-01:
 - the Maven 3.9.16 archive matched its published SHA-512 before its SHA-256 was pinned;
 - all 21 local Markdown link targets resolved;
 - `git diff --check` passed apart from line-ending conversion notices; and
-- the public Markdown privacy scan found no home, IDE, local JDK, or local Maven paths.
+- the staged repository, all rewritten local refs, and the fetched remote history contain
+  no audited home, IDE, local JDK, or local Maven paths.
 
-Remaining maintenance action: commit the scoped files, rewrite every reachable commit
-containing the audited machine-specific strings, push `main` with the recorded remote-SHA
-lease, rescan the rewritten history, and record the final remote verification here.
+GitHub still serves the now-unreferenced pre-rewrite commits when addressed directly by
+their old object IDs. No advertised branch or tag points to them. Git cannot remove these
+cached views; the repository owner must ask GitHub Support to dereference and garbage
+collect them before treating the historical exposure as fully expunged. Any pre-rewrite
+clone must be replaced or carefully rebased and must never merge or push the old history.
 
 ## `TEST-MIGRATION` completion handoff
 

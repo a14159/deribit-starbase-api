@@ -1,123 +1,86 @@
 # Deribit Starbase API repository guidance
 
-These instructions apply to the entire `deribit-starbase-api` repository.
+These rules apply to the whole repository.
 
-## Mandatory project context
+## Required context
 
-Before planning, editing, or running implementation commands, read both local files
-completely:
+Before planning, editing, or running implementation commands, read in full:
 
-- `docs/implementation-contract.md`
-- `docs/implementation-status.md`
+- `docs/implementation-contract.md` (stable technical contract)
+- `docs/implementation-status.md` (canonical mutable state and restart procedure)
 
-Treat the first file as the stable technical contract and the second as the canonical
-mutable execution state. Do not create another independently maintained tracker. Before a
-wire-layout or protocol-behavior change, also read `docs/protocol-source-review.md` and
-`docs/schema-manifest.md` completely and revalidate the current official sources.
+Do not create another tracker. Before changing wire layout or protocol behavior, also read
+`docs/protocol-source-review.md` and `docs/schema-manifest.md` in full and revalidate the
+current official sources. Stop and report any missing required file instead of guessing.
 
-The legacy Starbase Markdown files in `../deribit-api` are compatibility pointers only;
-this repository is authoritative. If any required local file is unavailable, stop and
-report the missing path instead of guessing at the architecture or current task.
+Then read the optional ignored `docs/local-environment.md` in full if present. It contains
+workstation launch details only, cannot override project state, and must not be copied into
+tracked files.
 
-After reading the required project documents, read `docs/local-environment.md` completely
-if it exists. It is an optional, ignored workstation note for local launch commands only;
-it is not project state and must never override the contract or status checkpoint. Never
-copy its machine-specific values into tracked files.
+Tracked docs/examples may use repository-relative paths, `PATH` commands, the Maven
+Wrapper, portable environment variables, versions, and placeholder paths. Never record an
+absolute home, IDE, JDK, Maven, or temporary path. Describe downstream users generically
+as consumers/integrations; never expose private consumer names, paths, internal types, or
+consumer-specific task IDs.
 
-Tracked documentation and examples must use repository-relative paths, commands resolved
-through `PATH`, or the checked-in Maven Wrapper. Do not record absolute home-directory,
-IDE-installation, JDK-installation, Maven-installation, or temporary-directory paths in a
-tracked file. Tool names, versions, portable environment-variable names, and placeholder
-paths are allowed when they improve reproducibility.
+## Execution workflow
 
-Refer to downstream users of this library generically as consumers or consumer
-integrations. Do not record private consumer repository names, paths, internal type names,
-or consumer-specific task identifiers in tracked files.
+At every implementation turn:
 
-## Persistent execution workflow
+1. Run `git status --short` here and in each explicitly scoped dependency/consumer repo;
+   preserve unrelated and user-owned changes.
+2. Read the checkpoint and exact restart procedure.
+3. While `PAUSED`, first revalidate the upstream specification. If it still lacks an exact
+   REST/SBE order-identity bridge, record that evidence and stop before downstream work.
+   Only an explicitly requested, separately documented maintenance goal may proceed; it
+   must neither change protocol behavior nor claim to resolve the pause.
+4. After the gate is truly resolved, resume the one active task or choose the first
+   dependency-ready task. Record it as active before changing production behavior.
+5. Work on one task until done or genuinely blocked. Record RED/pass evidence, changed
+   files, verification commands/results, blockers, and the exact next action in
+   `docs/implementation-status.md`; continue only while safe dependency-ready work remains.
 
-At the beginning of every implementation turn:
+Update the status file before ending or nearing a context boundary; its filesystem state,
+not chat history, is the handoff. Do not commit, create remotes, or push unless asked.
 
-1. Inspect `git status --short` in this repository and in any dependency or consumer
-   repository explicitly placed in scope. Preserve unrelated and user-owned changes.
-2. Read the status checkpoint and its exact restart procedure.
-3. While the status is `PAUSED`, revalidate the upstream specification first. If it still
-   lacks an exact REST/SBE order-identity bridge, record the evidence and do not start a
-   downstream task. A separately documented maintenance goal may run during the pause only
-   when the user explicitly requests that goal; it must not alter protocol behavior or
-   claim to resolve the pause.
-4. Once the gate is genuinely resolved, resume the single recorded active task or select
-   the first dependency-ready remaining task.
-5. Mark that task active and update the checkpoint before changing production behavior.
-6. Work on only that task until it is done or genuinely blocked.
-7. Record RED/passing evidence, changed files, verification commands/results, blockers,
-   and the exact next action in `docs/implementation-status.md`.
-8. Continue to the next dependency-ready task only while safe work remains.
+## Test-first behavior changes
 
-Before ending a turn or approaching a context boundary, update the local status file. The
-filesystem handoff, not the conversation summary, is authoritative.
+1. Add the smallest deterministic test and observe the intended failure.
+2. Make the smallest correct production change.
+3. Run the focused and affected regression tests.
+4. Add applicable boundary, corrupt-input, lifecycle, and state-transition coverage.
+5. For hot paths, run the post-warm-up allocation check.
+6. Record concise RED/pass evidence before completion.
 
-Do not make Git commits, create remotes, or push changes unless the user asks.
+Compilation alone is insufficient. Prefer byte fixtures, fake clocks, scripted channels,
+loopback peers, and checked-in PCAP data before live infrastructure.
 
-## Test-first rule
+## Fixed boundaries
 
-For every new behavior:
-
-1. Add the smallest deterministic test for the missing behavior.
-2. Run it and observe failure for the intended reason.
-3. Implement the smallest correct production change.
-4. Run the focused test and affected regression tests.
-5. Add relevant boundary, corrupt-input, lifecycle, and state-transition tests.
-6. For a hot path, run the required post-warm-up allocation check.
-7. Record concise RED and passing evidence in the status file before marking the task
-   done.
-
-A successful compilation alone does not complete a behavioral task. Prefer byte fixtures,
-fake clocks, scripted channels, and loopback peers before relying on a live Starbase
-environment.
-
-## Fixed implementation boundaries
-
-- Keep this as a separate Maven artifact:
-  `io.contek.invoker:invoker-deribit-starbase-api`.
-- Target Java 23 bytecode unless the specification is explicitly revised.
-- Do not implement FIX or FIX Drop Copy.
-- Do not generate codecs from SBE XML and do not parse XML at runtime.
-- Implement bounds-checked hardcoded codecs with fixed offsets and absolute
-  little-endian `ByteBuffer` access.
-- Do not allocate decoder/message/field objects per TCP message, UDP packet, or
-  market-data event.
-- Keep normal decode, dispatch, sequencing, L3 mutation, and consumer book-adaptation hot
-  paths allocation-free after warm-up.
-- Retain the factory -> API -> cached channel -> consumer architecture where applicable.
-- Use explicit TCP order-entry connection lifetime; never auto-close an idle session,
-  because disconnect can cancel orders.
-- Implement Starbase market data independently over UDP with A/B, snapshot, retransmit,
-  and L3 reconstruction.
-- Keep standard history, account, positions, and appropriate ticker functionality in the
-  existing `deribit-api`.
-- Require downstream consumers to keep market-data and execution backend selection
-  independent.
-- Never truncate 64-bit Starbase identifiers or silently ignore/approximate unsupported
-  order semantics.
-
-## Protocol and safety rules
-
-- Revalidate the current production documentation and downloaded schemas before hardcoding
-  any layout.
-- Pin and test every implemented schema version, template ID, block length, offset, enum,
-  null value, flag, and padding rule.
-- Unknown or unsupported state-changing messages must fail the affected feed/session
-  closed; do not continue with apparently healthy stale state.
-- Never merge a standard REST L2 snapshot into a Starbase L3 sequence domain.
-- Never duplicate-send an order to A and B.
-- Never commit credentials, private endpoints, tokens, or captured authenticated traffic.
-  Redact secrets from logs and test fixtures.
-- Preserve existing behavior in `deribit-api` and out-of-scope consumer code.
+- Artifact: `io.contek.invoker:invoker-deribit-starbase-api`; Java 23 bytecode unless the
+  specification is explicitly revised.
+- No FIX, FIX Drop Copy, generated SBE codecs, or runtime XML parsing.
+- Use bounds-checked hardcoded codecs, fixed offsets, and absolute little-endian
+  `ByteBuffer` access. Pin/test every schema version, template ID, block length, offset,
+  enum, null, flag, and padding rule after revalidating current production docs/schemas.
+- Allocate no decoder/message/field object per TCP message, UDP packet, or market-data
+  event; normal decode, dispatch, sequencing, L3 mutation, and consumer book adaptation
+  must be allocation-free after warm-up.
+- Retain factory -> API -> cached channel -> consumer where applicable.
+- TCP order-entry lifetime is explicit; never auto-close an idle session because
+  disconnect can cancel orders. Send each order to exactly one of A/B.
+- Starbase market data is independent UDP A/B + snapshot + retransmit + L3. Never mix a
+  standard REST L2 snapshot into its sequence domain.
+- Standard history, account, positions, and suitable ticker functions stay in
+  `deribit-api`; consumer market-data and execution backends remain independently
+  selectable.
+- Never truncate 64-bit Starbase IDs or silently ignore/approximate unsupported semantics.
+  Unknown/unsupported state-changing messages fail the affected feed/session closed.
+- Never commit credentials, private endpoints, tokens, or authenticated captures; redact
+  secrets from logs/fixtures. Preserve `deribit-api` and out-of-scope consumer behavior.
 
 ## Completion
 
-The implementation is complete only when the local status file has no required waiting,
-active, TODO, or blocked work, the acceptance criteria in the implementation contract have
-been audited, the relevant builds/tests pass, and required live validation is either
-recorded or explicitly reported as unavailable without claiming production readiness.
+Completion requires no required waiting/active/TODO/blocked status work, an audited
+contract, passing relevant builds/tests, and recorded live validation—or an explicit note
+that it was unavailable, without claiming production readiness.

@@ -1,26 +1,18 @@
 # Optional local environment
 
-Copy this file to `docs/local-environment.md` and replace the placeholders with values for
-your workstation. The destination is ignored by Git and copied into Codex-managed local
-worktrees through `.worktreeinclude`.
-
-Keep only machine-specific launch configuration here. Project state, test results,
-blockers, and restart instructions belong in `implementation-status.md`. An ignored file
-is not a secrets store; use environment or credential-management facilities for secrets.
-
-## PowerShell example
+Copy to ignored `docs/local-environment.md`; `.worktreeinclude` carries it into local
+Codex worktrees. Keep only machine launch details here—project state belongs in
+`implementation-status.md`, and secrets belong in credential storage.
 
 ```powershell
-$env:JAVA_HOME='<absolute path to a JDK 23 or newer installation>'
+$env:JAVA_HOME='<absolute JDK 23+ path>'
 .\mvnw.cmd clean test
 ```
 
-## POSIX shell example
-
 ```sh
-export JAVA_HOME='<absolute path to a JDK 23 or newer installation>'
+export JAVA_HOME='<absolute JDK 23+ path>'
 ./mvnw clean test
 ```
 
-Optional IDE launchers or other workstation-only preferences may be recorded below. Do
-not copy their absolute paths into tracked documentation.
+Workstation-only IDE launchers may follow; never copy their absolute paths into tracked
+docs.

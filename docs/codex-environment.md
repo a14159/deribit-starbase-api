@@ -1,43 +1,33 @@
 # Local and Codex environments
 
-The repository keeps project state and build instructions portable. Machine-specific
-paths belong only in the ignored `local-environment.md`, created from
+Keep project state/build instructions portable. Put machine paths only in ignored
+`docs/local-environment.md`, copied from
 [`local-environment.example.md`](local-environment.example.md).
 
-## Local checkout and Codex-managed worktrees
+## Local checkout/worktrees
 
-Use the checked-in Maven Wrapper with JDK 23 or newer:
+Use JDK 23+ and the Maven Wrapper:
 
 ```text
-Windows:        .\mvnw.cmd clean test
-Linux/macOS:    ./mvnw clean test
+Windows:      .\mvnw.cmd clean test
+Linux/macOS:  ./mvnw clean test
 ```
 
-`.worktreeinclude` copies an existing ignored `docs/local-environment.md` into local
-Codex-managed worktrees. The file is optional; the portable wrapper commands remain the
-authoritative build instructions.
+`.worktreeinclude` copies an existing optional `docs/local-environment.md` into local
+Codex-managed worktrees; wrapper commands remain authoritative.
 
-## Codex cloud container
+## Codex cloud
 
-Create or edit the repository's Codex cloud environment in Codex settings:
+In the repository's Codex environment settings:
 
-1. Add the non-secret environment variable `CODEX_ENV_JAVA_VERSION=23`. The universal
-   Codex image supports this variable and installs the selected JDK before setup.
-2. Use this setup script while setup-phase internet access is available:
+1. Set non-secret `CODEX_ENV_JAVA_VERSION=23`.
+2. While setup has internet access, prime Maven/plugins with
+   `./mvnw -B -ntp -DskipTests package`.
+3. Validate agents with `./mvnw -B -ntp clean test`.
 
-   ```sh
-   ./mvnw -B -ntp -DskipTests package
-   ```
+Cloud checkouts cannot inherit a laptop's ignored file. A setup script may create it for
+non-secret container notes; store credentials as Codex environment secrets.
 
-   This verifies the pinned Maven distribution, downloads build plugins, and primes the
-   container cache.
-3. Use `./mvnw -B -ntp clean test` for normal validation in the agent phase.
-
-Cloud containers check out tracked Git content and cannot inherit an ignored file from a
-laptop. If a container needs additional non-secret local notes, its setup script may
-create `docs/local-environment.md` with container-specific values. Configure credentials
-as Codex environment secrets instead of writing them to that file.
-
-See the official documentation for [Codex cloud environments](https://learn.chatgpt.com/docs/environments/cloud-environment),
-[Codex-managed worktrees](https://learn.chatgpt.com/docs/environments/git-worktrees), and
-the [`codex-universal` runtime variables](https://github.com/openai/codex-universal#configuring-language-runtimes).
+Official references: [cloud environments](https://learn.chatgpt.com/docs/environments/cloud-environment),
+[managed worktrees](https://learn.chatgpt.com/docs/environments/git-worktrees), and
+[`codex-universal` variables](https://github.com/openai/codex-universal#configuring-language-runtimes).

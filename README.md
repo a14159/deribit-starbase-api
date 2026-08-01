@@ -1,86 +1,65 @@
 # Deribit Starbase API
 
-Standalone Java client components for Deribit's not-yet-launched Starbase interfaces.
-The Maven coordinates are
-`io.contek.invoker:invoker-deribit-starbase-api:0.1.0-SNAPSHOT`, targeting Java 23.
+Java 23 components for Deribit's not-yet-launched Starbase interfaces. Maven coordinates:
+`io.contek.invoker:invoker-deribit-starbase-api:0.1.0-SNAPSHOT`.
 
 ## Status
 
-Development was paused on 2026-07-31 while waiting for a corrected or clarified Deribit
-specification. The checked-in implementation is a locally tested prototype, not a
-production-ready client and not yet integrated into a production consumer.
+Development is paused (since 2026-07-31) for a corrected or clarified specification. This
+is a locally tested, unintegrated prototype—not production-ready.
 
-The blocking incompatibility is in reconnect recovery: SBE order-entry schema v11 uses
-signed 64-bit `orderId` and `clientOrderId`, while Starbase REST 2.0 returns a UUID-style
-string `order_id` and an optional `label`. No official exact mapping joins the REST
-snapshot to SBE session state. Approximate matching could reconcile the wrong order, so
-trading readiness deliberately remains fail-closed.
+Reconnect recovery is blocked because SBE order-entry v11 identifies orders with signed
+64-bit `orderId`/`clientOrderId`, while REST 2.0 exposes a UUID-style `order_id` and optional
+`label`. No official exact bridge exists; approximate reconciliation could select the
+wrong order, so trading readiness remains fail-closed.
 
-Start with:
+Project context:
 
-- [Implementation status](docs/implementation-status.md) — completed components, known
-  assembly gaps, blocker evidence, remaining work, and the exact restart procedure.
-- [Implementation contract](docs/implementation-contract.md) — durable architecture,
-  safety, scope, and performance requirements.
-- [Protocol source review](docs/protocol-source-review.md) — reviewed Deribit sources,
-  rollout assumptions, and current discrepancies.
-- [Schema manifest](docs/schema-manifest.md) — pinned XML hashes and every implemented
-  hardcoded wire template.
-- [Environment setup](docs/codex-environment.md) — portable local, Codex worktree, and
-  Codex cloud-container setup.
+- [Status and restart handoff](docs/implementation-status.md)
+- [Durable implementation contract](docs/implementation-contract.md)
+- [Official-source review](docs/protocol-source-review.md)
+- [Pinned schema/template manifest](docs/schema-manifest.md)
+- [Portable environment setup](docs/codex-environment.md)
 
-## Implemented so far
+## Implemented components
 
-- Bounds-checked, absolute little-endian codecs for common framing, the required
-  market-data subset, and 25 order-entry message layouts.
-- UDP receiver, sequence, A/B arbitration, retransmit, snapshot synchronization, health,
-  and diagnostic components.
-- Primitive 64-bit instrument registry, L3 book, exact level aggregation, atomic snapshot
-  state, coherent publication boundaries, and cached primitive channels.
-- TCP framing/writing, connection lifecycle, authentication, heartbeat, sequence,
-  reconnect/readiness, command correlation, local order state, fill de-duplication,
-  client-ID mapping, and single-send A/B routing components.
-- The five Starbase REST utilities plus a synchronous, immutable, single-flight
-  open-order recovery cache with a minimum one-minute attempt interval.
-- Deterministic official-PCAP replay and allocation checks for the implemented hot paths.
+- Bounds-checked absolute little-endian framing, market-data, and 25 order-entry layouts.
+- UDP receive/sequencing, A/B arbitration, retransmit, snapshot, health, and diagnostics.
+- Exact 64-bit registry/L3 book, aggregation, atomic snapshots, coherent publication, and
+  cached primitive channels.
+- TCP framing/write/lifecycle, authentication, heartbeat, sequencing, reconnect/readiness,
+  correlation, order/fill state, client-ID mapping, and one-send A/B routing.
+- Five REST utilities and an immutable, synchronous single-flight open-order cache with a
+  one-minute minimum attempt interval.
+- Deterministic official-PCAP replay and hot-path allocation checks.
 
-These pieces are not all assembled behind the public APIs. The exact integration state is
-listed in [Implementation status](docs/implementation-status.md#known-assembly-and-validation-gaps).
+They are not yet fully composed behind the public APIs; see the [known assembly and
+validation gaps](docs/implementation-status.md#known-assembly-and-validation-gaps).
 
 ## Build
 
-Use a JDK 23 or newer installation. The checked-in Maven Wrapper pins Maven 3.9.16, so a
-separate Maven or IDE installation is not required.
+Use JDK 23+ and the Maven wrapper:
 
-On Windows:
-
-```powershell
-.\mvnw.cmd clean test
+```text
+mvnw clean test
 ```
 
-On Linux or macOS:
+Tests have no framework dependency. Surefire's auto-detected
+`org.apache.maven.surefire.junit.JUnit3Provider` discovers public final classes and public
+zero-argument `test*` methods; local `TestAssertions` supplies assertions. The baseline
+test verifies Java assertions are enabled.
 
-```sh
-./mvnw clean test
-```
+Two consecutive clean runs on 2026-07-31 passed all 292 tests (no failures, errors, or
+skips). No private live Starbase environment was available, so this proves local behavior
+only.
 
-The tests have no framework dependency. Surefire auto-detects
-`org.apache.maven.surefire.junit.JUnit3Provider`, which discovers each public final test
-class and its public zero-argument `test*` methods. Test assertions come from the local
-test-only `TestAssertions` utility. Surefire enables Java assertions by default, and the
-artifact baseline test verifies that behavior at runtime.
+For machine-specific launch notes, copy
+[`docs/local-environment.example.md`](docs/local-environment.example.md) to ignored
+`docs/local-environment.md`; never store credentials there. See [environment
+setup](docs/codex-environment.md) for Codex cloud use.
 
-Two consecutive clean local runs on 2026-07-31 each passed 292 tests with no failures,
-errors, or skips. No live private Starbase environment was available, so this result
-establishes local behavior only.
+## Scope
 
-For optional machine-specific launch notes, copy
-[`docs/local-environment.example.md`](docs/local-environment.example.md) to the ignored
-`docs/local-environment.md`. Do not put credentials in that file. Codex cloud setup is
-described in [Environment setup](docs/codex-environment.md).
-
-## Scope boundaries
-
-This artifact does not implement FIX, FIX Drop Copy, generated SBE codecs, runtime XML
-parsing, standard Deribit history/account APIs, or consumer-specific adapters. Standard
-REST and WebSocket functionality stays in the sibling `deribit-api` project.
+No FIX/FIX Drop Copy, generated codecs, runtime XML parsing, standard Deribit
+history/account APIs, or consumer-specific adapters. Standard REST/WebSocket functions
+remain in sibling `deribit-api`.

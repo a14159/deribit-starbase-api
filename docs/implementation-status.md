@@ -8,169 +8,18 @@
 | Pause date | 2026-07-31 |
 | Active task | None |
 | Blocking task | `ORD-07`, exact REST-to-SBE open-order reconciliation |
-| Last completed task | `BUILD-PLUGIN-DEFAULTS`, wrapper-provided compiler and Surefire lifecycle defaults |
-| Local verification | Maven Wrapper 3.9.16: focused baseline test and full clean suite passed; 292 tests, 0 failures, 0 errors, 0 skipped; `git diff --check` passed |
+| Last completed task | `DOC-COMPACT`, repository Markdown context reduction |
+| Local verification | Prior clean suite: 292/292. `DOC-COMPACT`: focused baseline 1/1; 21/21 relative links, preservation/fence audits, and `git diff --check` passed. |
 | Production readiness | **No** — component assembly, downstream consumer integration, joint builds, and private live validation remain |
-| Exact next action | Ask GitHub Support to purge the unreferenced pre-rewrite cached views; protocol work remains paused pending the next Deribit specification review |
+| Exact next action | Ask GitHub Support to purge the unreferenced pre-rewrite cached views. Protocol work remains paused pending the next Deribit specification review. |
 
-There is intentionally no `IN_PROGRESS` implementation item. Do not start downstream
-protocol work merely because the local suite is green. First resolve the protocol identity
-gate described below, or get an explicit scope decision that changes the recovery
-requirement. The explicitly approved `DOC-CONSUMER-PRIVACY` maintenance goal completed
-without resuming protocol work or altering production behavior.
-
-## `BUILD-PLUGIN-DEFAULTS` completion handoff
-
-The user explicitly requested this separate maintenance goal on 2026-08-01 after removing
-the explicit compiler and Surefire plugin block from `pom.xml`. The change is preserved.
-Wrapper-pinned Maven 3.9.16 supplies compiler 3.15.0 and Surefire 3.5.4 through its default
-lifecycle bindings. `ArtifactBaselineTest` no longer requires an explicit Surefire block;
-it continues to verify the Java 23 release property, absence of JUnit, and enabled Java
-assertions at runtime. The README and test-migration handoff now describe the inherited
-lifecycle behavior. No production source or protocol behavior changed.
-
-The required upstream revalidation found the official XML bundle, REST OpenAPI, and SDK
-byte-for-byte unchanged: bundle SHA-256
-`D36FEDB7AEB2FC5418FBFCFA9FBA80762E865689198B34A64DAEC8DB6D6FB425`, OpenAPI SHA-256
-`F2F2DD44CC4ED63ACC8C4E30545B2829514BF20566EE0C6AEFBA16D0F6F267DB`, and SDK SHA-256
-`57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`. The REST `Order`
-still exposes only the UUID-style string `order_id` and nullable string `label`, so
-`SPEC-01`/`ORD-07` remain blocked.
-
-RED evidence:
-
-- `.\mvnw.cmd -B -ntp clean test`: 292 tests, 1 failure in `ArtifactBaselineTest`, caused
-  by its stale assertion that `pom.xml` explicitly declares `maven-surefire-plugin`; the
-  other 291 tests passed under inherited compiler 3.15.0 and Surefire 3.5.4.
-
-Passing evidence:
-
-- `.\mvnw.cmd -B -ntp "-Dtest=ArtifactBaselineTest" test`: 1 test, 0 failures, 0 errors,
-  0 skipped;
-- `.\mvnw.cmd -B -ntp clean test`: 292 tests, 0 failures, 0 errors, 0 skipped; and
-- `git diff --check`: passed, with only line-ending conversion warnings.
-
-Changed files are the user-edited `pom.xml`, `ArtifactBaselineTest.java`, `README.md`, and
-this status checkpoint. The exact next protocol action remains unchanged.
-
-The independently approved `TEST-MIGRATION` maintenance goal is complete. It did not
-resume protocol work, alter production sources, or resolve `SPEC-01`/`ORD-07`.
-
-## `DOC-CONSUMER-PRIVACY` completion handoff
-
-The user explicitly approved this repository-maintenance goal during the protocol pause.
-It changes public documentation and repository history only; it does not change production
-sources, protocol behavior, or the `SPEC-01`/`ORD-07` gate.
-
-Completed work:
-
-- `AGENTS.md` now requires generic consumer terminology and generic status checks for any
-  dependency or consumer repository explicitly placed in scope;
-- the README, implementation contract, implementation status, and protocol source review
-  describe downstream integrations without naming or exposing a private consumer;
-- legacy consumer-specific task identifiers are now the generic `CON-01`–`CON-08` range;
-- private consumer repository names, sibling paths, internal type names, and task prefixes
-  were removed from current files and every reachable historical Markdown blob;
-- a verified local recovery bundle preserves the pre-rewrite history off-repository;
-- all six existing commits were rewritten without changing the reviewed current file tree;
-- `main` was force-pushed only after its explicit remote-SHA lease matched; and
-- a fresh fetch matched the advertised rewritten tip, with one branch, no tags, and no
-  pull-request refs.
-
-Verification on 2026-08-01:
-
-- `.\mvnw.cmd -B -ntp test`: 292 tests, 0 failures, 0 errors, 0 skipped;
-- all 21 relative Markdown link targets resolved;
-- `git diff --check` and the staged-tree scan passed;
-- all rewritten local refs and all fetched-remote commits passed case-insensitive scans for
-  the private consumer repository name and the retired consumer-specific identifiers; and
-- the final public file tree remained byte-for-byte identical before and after the history
-  rewrite.
-
-The GitHub cached-view caveat in the next handoff also applies to commits made unreachable
-by this rewrite. GitHub Support remains the required external follow-up.
-
-## `DOC-PRIVACY` completion handoff
-
-The user explicitly approved this repository-maintenance goal during the protocol pause.
-It does not change production sources, protocol behavior, or the `SPEC-01`/`ORD-07` gate.
-
-Completed work:
-
-- tracked documentation now uses the Maven Wrapper or portable commands instead of
-  workstation-specific launchers;
-- Maven Wrapper 3.3.4 pins Maven 3.9.16 and verifies the distribution SHA-256;
-- `.gitignore` excludes `docs/local-environment.md`, while a tracked example documents
-  its strictly non-authoritative scope;
-- `.worktreeinclude` carries that ignored note into Codex-managed local worktrees;
-- tracked Codex environment guidance configures JDK 23 and primes the wrapper during the
-  cloud setup phase; and
-- `AGENTS.md` forbids machine-specific paths in tracked documentation;
-- a verified local recovery bundle preserves the pre-rewrite history off-repository;
-- every affected reachable Markdown blob was rewritten with portable placeholders;
-- `main` was force-pushed only after its explicit remote-SHA lease matched; and
-- the fetched remote advertises one clean branch and no tags.
-
-Verification on 2026-08-01:
-
-- `.\mvnw.cmd -B -ntp clean test`: 292 tests, 0 failures, 0 errors, 0 skipped;
-- the Maven 3.9.16 archive matched its published SHA-512 before its SHA-256 was pinned;
-- all 21 local Markdown link targets resolved;
-- `git diff --check` passed apart from line-ending conversion notices; and
-- the staged repository, all rewritten local refs, and the fetched remote history contain
-  no audited home, IDE, local JDK, or local Maven paths.
-
-GitHub still serves the now-unreferenced pre-rewrite commits when addressed directly by
-their old object IDs. No advertised branch or tag points to them. Git cannot remove these
-cached views; the repository owner must ask GitHub Support to dereference and garbage
-collect them before treating the historical exposure as fully expunged. Any pre-rewrite
-clone must be replaced or carefully rebased and must never merge or push the old history.
-
-## `TEST-MIGRATION` completion handoff
-
-The suite uses a dependency-free Maven Surefire POJO convention:
-
-- `pom.xml` has no test dependency or JUnit property; wrapper-pinned Maven 3.9.16 supplies
-  Surefire 3.5.4 through its default lifecycle bindings, and Java assertions are verified
-  at runtime;
-- all 63 test classes are public and expose 292 public zero-argument `test*` methods;
-- `TestAssertions` is a test-only typed assertion/exception utility, covered by 11
-  deliberately added contract tests;
-- all 281 baseline methods map exactly to their prefixed POJO names, with no original
-  assertion invocation removed;
-- the source-to-Surefire-XML inventory maps all 292 methods exactly; and
-- the source/POM scans contain no `org.junit`, JUnit annotation, dependency, exclusion,
-  skip, or discovery-canary residue.
-
-RED evidence was preserved for the missing assertion helper, the required nullable
-boxed-long overload, and the temporary discovery canary. The canary produced one expected
-failure through `PojoTestSetExecutor` and was immediately removed. During repeated full
-runs, `StarbaseMarketDataTransportLifecycleTest` exposed an observation race between the
-aggregate receive count and the per-feed diagnostic count; its existing bounded wait now
-observes both already-asserted states. The focused class then passed six consecutive runs.
-
-Final verification on 2026-07-31:
-
-```powershell
-.\mvnw.cmd clean test
-```
-
-This is the current portable reproduction command for the recorded test run. The original
-workstation-specific launcher is intentionally retained only in the ignored local
-environment note.
-
-- Two consecutive clean runs: 292 tests, 0 failures, 0 errors, 0 skipped, using
-  `org.apache.maven.surefire.junit.JUnit3Provider`.
-- Final XML: 63 suites and 292 testcase elements, with exact source mapping.
-- Allocation focus: 34 discovered allocation-sensitive classes, 189 tests, all passing.
-- `mvn dependency:tree`: only the project artifact; no dependencies.
-- `git diff --check`: passed, with only the pre-existing `AGENTS.md` line-ending warning.
-- Documentation: all 19 local Markdown links resolved after the final handoff edits.
+There is no `IN_PROGRESS` implementation item: a green suite does not bypass the identity
+gate. The explicitly requested `DOC-COMPACT` maintenance goal is complete without changing
+protocol requirements/behavior, evidence, blockers, or restart state.
 
 ## Why work is paused
 
-The local SBE order store is keyed by exact signed 64-bit `orderId` and `clientOrderId`.
-The current official Starbase REST 2.0 `Order` response instead exposes:
+Local SBE state uses exact signed 64-bit `orderId`/`clientOrderId`; REST 2.0 `Order` has:
 
 - a required UUID-style string `order_id`;
 - an optional/nullable string `label`; and
@@ -187,10 +36,8 @@ order_type, post_only, price, profit_loss, reduce_only, side, time_in_force
 Required fields are `order_id`, `instrument_name`, `side`, `price`, `amount`,
 `filled_amount`, `order_state`, and `order_type`.
 
-Matching on instrument, side, price, quantity, timestamps, or label is ambiguous. Doing so
-could attach a REST order to the wrong SBE order and then incorrectly reopen trading after
-a disconnect. The implementation contract forbids that approximation, so
-`ReconnectReadiness.onReconciled()` cannot be called safely.
+Tuple/label matching is ambiguous and could bind the wrong order, then reopen trading after
+disconnect. The contract forbids it; `ReconnectReadiness.onReconciled()` is unsafe.
 
 The blocker was rechecked three times on 2026-07-31 against:
 
@@ -200,11 +47,11 @@ The blocker was rechecked three times on 2026-07-31 against:
   `70B1B297A4D8472CA31C76E97613909B136C0CF4782CB858CAC306696C0C5A89`;
 - official Starbase SDK 0.5.1, archive SHA-256
   `57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`;
-- the official binary documentation and the implemented local state models.
+- official binary docs and local state models.
 
-The SDK contains numeric SBE IDs but no REST client/model or UUID-to-SBE bridge. A safe
-resolution requires Deribit to add a shared exact SBE identifier to REST, or formally
-document another collision-free reversible mapping.
+The SDK has numeric SBE IDs but no REST model/client or UUID bridge. Deribit must expose a
+shared exact SBE identifier in REST or formally specify another collision-free reversible
+mapping.
 
 ## Implemented and verified component inventory
 
@@ -227,24 +74,21 @@ below; the tests and source are the detailed executable record, while
 
 ### Official market-data fixture result
 
-The checked-in 5,344,700-byte PCAP has SHA-256
+Checked-in PCAP: 5,344,700 bytes, SHA-256
 `980B9D78E46057A5271CB1F99184A82920A5964A0DA959276FACAF4FC8F869CF`.
-`OfficialPcapReplayTest` deterministically validates all 13,306 packets and 37,745
-messages. `PcapToChannelsReplayTest` verifies channel 44853 with 2,115 reference
-callbacks, 861 coherent book callbacks, book hash `7987323303025136854`, zero trade
-callbacks (the capture has no trade templates), and final book readiness.
+`OfficialPcapReplayTest`: 13,306 packets/37,745 messages. `PcapToChannelsReplayTest` on
+channel 44853: 2,115 reference + 861 coherent book callbacks, hash
+`7987323303025136854`, zero trades (none in capture), final book ready.
 
 ### Allocation evidence
 
-Post-warm-up tests report zero allocated bytes for the implemented normal paths in these
-areas:
+Post-warm-up tests report zero bytes on implemented normal paths for:
 
 - wire primitives, decimal codecs, template dispatch, and all implemented MD/OE decoders;
 - feed sequence, A/B arbitration, snapshot synchronization, and diagnostics;
 - instrument lookup, L3 mutation, aggregation, and coherent book replay;
 - TCP frame assembly/write, heartbeat, and sequence state; and
-- correlation, local order lifecycle, command encode/send, fill processing, client-ID
-  lookup, and order routing.
+- correlation/order lifecycle, command encode/send, fills, client-ID lookup, and routing.
 
 The individual measured methods remain discoverable with:
 
@@ -252,53 +96,43 @@ The individual measured methods remain discoverable with:
 rg -n "[Aa]llocat(e|es|ion).*([Nn]othing|0 bytes)|0 allocated bytes" src/test/java
 ```
 
-These are unit-level allocation assertions, not a substitute for the still-pending
-end-to-end benchmark.
+These unit assertions do not replace the pending end-to-end benchmark.
 
 ## `OpenOrderRecoveryCache` handoff
 
 [`OpenOrderRecoveryCache`](../src/main/java/io/contek/invoker/deribit/starbase/rest/OpenOrderRecoveryCache.java)
-is the last completed production component and is deliberately narrower than
-reconciliation:
+is the latest production component, not reconciliation:
 
-- construction rejects refresh intervals shorter than one minute;
-- `get()` and `refresh()` are synchronized, so an expired snapshot has one synchronous
-  in-flight load;
-- each successful result is published as an immutable `List.copyOf` snapshot;
-- refresh attempts, including failures, advance the next allowed attempt time;
-- `invalidate()` expires the value locally but cannot bypass the server rate window;
-- a refresh failure retains the last-good snapshot while surfacing the failure;
-- an initial failure leaves `hasSnapshot()` false and later rate-limited reads fail
-  honestly; and
-- counters and deadlines saturate rather than overflow.
+- rejects intervals below one minute; synchronized `get()`/`refresh()` permit one
+  synchronous expired-snapshot load;
+- publishes immutable `List.copyOf` results; every attempt (including failure) advances
+  the rate window, which `invalidate()` cannot bypass;
+- surfaces refresh failure while retaining last-good state; initial failure leaves
+  `hasSnapshot()` false and rate-limited reads fail honestly; and
+- counters/deadlines saturate.
 
-Its behavior is covered by
-[`OpenOrderRecoveryCacheTest`](../src/test/java/io/contek/invoker/deribit/starbase/rest/OpenOrderRecoveryCacheTest.java).
-The cache does not map REST orders to SBE IDs, mutate `LocalOrderStateStore`, or mark a
-session reconciled. That missing step is exactly `ORD-07`.
+[`OpenOrderRecoveryCacheTest`](../src/test/java/io/contek/invoker/deribit/starbase/rest/OpenOrderRecoveryCacheTest.java)
+covers this. The cache never maps REST/SBE IDs, mutates `LocalOrderStateStore`, or marks
+reconciled; that is `ORD-07`.
 
 ## Known assembly and validation gaps
 
-The green suite proves the components above in isolation and through selected replay
-paths. It does **not** mean the public APIs form a complete client:
+Green component/replay tests do **not** make the public APIs a complete client:
 
-1. `StarbaseOrderEntryApi` is still a facade placeholder. `isAuthenticated()` always
-   returns `false`; the tested connection, authentication, liveness, sequence, readiness,
-   command, state, fill, mapping, and routing components are not composed behind it.
-2. One `StarbaseMarketDataApi` instance owns one configured `GatewaySide` with one
-   incremental and one snapshot receiver. Its live gap path records the gap and returns.
-   `FeedArbitrator`, `RetransmitClient`, `UdpRetransmitTransport`, and the atomic recovery
-   components are tested but are not wired into that live API, so it does not yet join and
-   coordinate both A/B sides or recover live gaps end to end.
-3. `IndexDefinition` has a hardcoded decoder but is not applied/published by the public
-   market-data API. Schema-known `BlockTrade` (template 33) has no hardcoded decoder and
-   fails closed in packet dispatch.
+1. `StarbaseOrderEntryApi` remains a facade; `isAuthenticated()` always returns `false`.
+   Tested connection/auth/liveness/sequence/readiness/command/state/fill/mapping/routing
+   pieces are not composed.
+2. Each `StarbaseMarketDataApi` owns one `GatewaySide` and its incremental/snapshot
+   receiver; live gaps are only recorded. Tested `FeedArbitrator`, `RetransmitClient`,
+   `UdpRetransmitTransport`, and atomic recovery are unwired, so the API neither coordinates
+   A/B nor recovers gaps end to end.
+3. `IndexDefinition` is decoded but not applied/published. `BlockTrade` template 33 has no
+   codec and fails closed.
 4. Exact REST/SBE reconnect reconciliation is absent and readiness must remain closed.
-5. No Starbase dependency, backend selection, stream adapters, execution connector, or
-   health integration has been validated in a downstream consumer.
-6. A complete downstream dependency graph has not been built together, and no private
-   Starbase test environment, credentials, authenticated traffic, deployment
-   configuration, or rollback exercise has been validated.
+5. No downstream Starbase dependency/backend choice, stream/execution adapter, or health
+   integration is validated.
+6. No joint dependency-graph build or private environment, credentials, authenticated
+   flow, deployment configuration, or rollback validation exists.
 
 ## Remaining work
 
@@ -341,27 +175,18 @@ unblock integration.
 
 ## Reproducible local verification
 
-Use JDK 23 or newer. The Maven Wrapper pins Maven 3.9.16 and verifies the downloaded
-distribution checksum.
+Use JDK 23+; the checksum-verified wrapper pins Maven 3.9.16 and targets Java 23:
 
-Windows:
-
-```powershell
-.\mvnw.cmd clean test
+```text
+Windows:      .\mvnw.cmd clean test
+Linux/macOS:  ./mvnw clean test
 ```
 
-Linux or macOS:
-
-```sh
-./mvnw clean test
-```
-
-The source targets Java 23 bytecode when Maven runs on any compatible JDK. Focused
-Windows example:
+Focused Windows example:
 
 ```powershell
 .\mvnw.cmd "-Dtest=OpenOrderRecoveryCacheTest,StarbaseOpenOrdersEndpointTest,StarbaseRestTransportTest" test
 ```
 
-Always inspect the current branch, worktree, and remotes directly when resuming; historical
-machine-local Git state is not part of this checkpoint.
+On resumption inspect branch/worktree/remotes directly; historical machine-local Git state
+is not part of this checkpoint.

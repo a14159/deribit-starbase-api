@@ -8,8 +8,8 @@
 | Pause date | 2026-07-31 |
 | Active task | None |
 | Blocking task | `ORD-07`, exact REST-to-SBE open-order reconciliation |
-| Last completed task | `DOC-CONSUMER-PRIVACY`, generic downstream-consumer terminology and reachable-history sanitization |
-| Local verification | Maven Wrapper 3.9.16: 292 tests, 0 failures, 0 errors, 0 skipped; 21 Markdown links; local and fetched-remote history privacy scans passed |
+| Last completed task | `BUILD-PLUGIN-DEFAULTS`, wrapper-provided compiler and Surefire lifecycle defaults |
+| Local verification | Maven Wrapper 3.9.16: focused baseline test and full clean suite passed; 292 tests, 0 failures, 0 errors, 0 skipped; `git diff --check` passed |
 | Production readiness | **No** — component assembly, downstream consumer integration, joint builds, and private live validation remain |
 | Exact next action | Ask GitHub Support to purge the unreferenced pre-rewrite cached views; protocol work remains paused pending the next Deribit specification review |
 
@@ -18,6 +18,40 @@ protocol work merely because the local suite is green. First resolve the protoco
 gate described below, or get an explicit scope decision that changes the recovery
 requirement. The explicitly approved `DOC-CONSUMER-PRIVACY` maintenance goal completed
 without resuming protocol work or altering production behavior.
+
+## `BUILD-PLUGIN-DEFAULTS` completion handoff
+
+The user explicitly requested this separate maintenance goal on 2026-08-01 after removing
+the explicit compiler and Surefire plugin block from `pom.xml`. The change is preserved.
+Wrapper-pinned Maven 3.9.16 supplies compiler 3.15.0 and Surefire 3.5.4 through its default
+lifecycle bindings. `ArtifactBaselineTest` no longer requires an explicit Surefire block;
+it continues to verify the Java 23 release property, absence of JUnit, and enabled Java
+assertions at runtime. The README and test-migration handoff now describe the inherited
+lifecycle behavior. No production source or protocol behavior changed.
+
+The required upstream revalidation found the official XML bundle, REST OpenAPI, and SDK
+byte-for-byte unchanged: bundle SHA-256
+`D36FEDB7AEB2FC5418FBFCFA9FBA80762E865689198B34A64DAEC8DB6D6FB425`, OpenAPI SHA-256
+`F2F2DD44CC4ED63ACC8C4E30545B2829514BF20566EE0C6AEFBA16D0F6F267DB`, and SDK SHA-256
+`57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`. The REST `Order`
+still exposes only the UUID-style string `order_id` and nullable string `label`, so
+`SPEC-01`/`ORD-07` remain blocked.
+
+RED evidence:
+
+- `.\mvnw.cmd -B -ntp clean test`: 292 tests, 1 failure in `ArtifactBaselineTest`, caused
+  by its stale assertion that `pom.xml` explicitly declares `maven-surefire-plugin`; the
+  other 291 tests passed under inherited compiler 3.15.0 and Surefire 3.5.4.
+
+Passing evidence:
+
+- `.\mvnw.cmd -B -ntp "-Dtest=ArtifactBaselineTest" test`: 1 test, 0 failures, 0 errors,
+  0 skipped;
+- `.\mvnw.cmd -B -ntp clean test`: 292 tests, 0 failures, 0 errors, 0 skipped; and
+- `git diff --check`: passed, with only line-ending conversion warnings.
+
+Changed files are the user-edited `pom.xml`, `ArtifactBaselineTest.java`, `README.md`, and
+this status checkpoint. The exact next protocol action remains unchanged.
 
 The independently approved `TEST-MIGRATION` maintenance goal is complete. It did not
 resume protocol work, alter production sources, or resolve `SPEC-01`/`ORD-07`.
@@ -96,8 +130,9 @@ clone must be replaced or carefully rebased and must never merge or push the old
 
 The suite uses a dependency-free Maven Surefire POJO convention:
 
-- `pom.xml` has no test dependency or JUnit property; it pins Surefire 3.5.4 and enables
-  Java assertions;
+- `pom.xml` has no test dependency or JUnit property; wrapper-pinned Maven 3.9.16 supplies
+  Surefire 3.5.4 through its default lifecycle bindings, and Java assertions are verified
+  at runtime;
 - all 63 test classes are public and expose 292 public zero-argument `test*` methods;
 - `TestAssertions` is a test-only typed assertion/exception utility, covered by 11
   deliberately added contract tests;

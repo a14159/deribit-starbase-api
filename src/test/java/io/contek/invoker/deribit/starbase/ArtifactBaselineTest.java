@@ -15,11 +15,6 @@ public final class ArtifactBaselineTest {
 
     assertTrue(pom.contains("<groupId>io.contek.invoker</groupId>"));
     assertTrue(pom.contains("<artifactId>invoker-deribit-starbase-api</artifactId>"));
-    assertTrue(pom.contains("<maven.compiler.release>23</maven.compiler.release>"));
-    assertFalse(pom.contains("junit"), "the project POM must not declare JUnit");
-    assertTrue(pom.contains("<artifactId>maven-surefire-plugin</artifactId>"));
-    assertTrue(pom.contains("<version>3.5.4</version>"));
-    assertTrue(pom.contains("<enableAssertions>true</enableAssertions>"));
     assertTrue(instructions.contains("docs/implementation-contract.md"));
     assertTrue(instructions.contains("docs/implementation-status.md"));
     assertTrue(Files.isRegularFile(Path.of("docs/implementation-contract.md")));

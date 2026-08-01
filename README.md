@@ -64,11 +64,12 @@ On Linux or macOS:
 ./mvnw clean test
 ```
 
-The tests have no framework dependency. Surefire 3.5.4 auto-detects
+The tests have no framework dependency. Maven 3.9.16 supplies Surefire 3.5.4 through its
+default lifecycle bindings; Surefire auto-detects
 `org.apache.maven.surefire.junit.JUnit3Provider`, which discovers each public final test
 class and its public zero-argument `test*` methods. Test assertions come from the local
-test-only `TestAssertions` utility, and Java assertions are enabled explicitly by the
-Surefire configuration.
+test-only `TestAssertions` utility. Surefire enables Java assertions by default, and the
+artifact baseline test verifies that behavior at runtime.
 
 Two consecutive clean local runs on 2026-07-31 each passed 292 tests with no failures,
 errors, or skips. No live private Starbase environment was available, so this result

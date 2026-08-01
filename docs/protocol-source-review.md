@@ -99,8 +99,9 @@ is in [schema-manifest.md](schema-manifest.md), and component/integration status
 [implementation-status.md](implementation-status.md).
 
 The A/B, retransmit, snapshot, TCP session, order-state, and routing primitives are not yet
-fully composed behind the public APIs. Downstream backend selection and adapters have not
-started. FIX, generated codecs, runtime XML parsing, and mass quoting remain out of scope.
+fully composed behind the public APIs. Downstream backend selection and consumer adapters
+have not started. FIX, generated codecs, runtime XML parsing, and mass quoting remain out
+of scope.
 
 On resumption, re-download every official source and compare versions and hashes before
 editing a codec. In particular, do not proceed past the current pause unless the official

@@ -82,5 +82,5 @@ described in [Environment setup](docs/codex-environment.md).
 ## Scope boundaries
 
 This artifact does not implement FIX, FIX Drop Copy, generated SBE codecs, runtime XML
-parsing, standard Deribit history/account APIs, or consumer-specific adapters. Standard REST and
-WebSocket functionality stays in the sibling `deribit-api` project.
+parsing, standard Deribit history/account APIs, or consumer-specific adapters. Standard
+REST and WebSocket functionality stays in the sibling `deribit-api` project.

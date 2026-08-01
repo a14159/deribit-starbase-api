@@ -6,8 +6,8 @@ in [implementation-status.md](implementation-status.md).
 
 ## Purpose and repository boundaries
 
-`deribit-starbase-api` is a separate reusable Maven artifact for the Starbase SBE TCP,
-SBE UDP, and REST utility interfaces needed by downstream consumers.
+`deribit-starbase-api` is a separate reusable Maven artifact for Starbase SBE TCP, SBE
+UDP, and REST utility interfaces used by downstream consumers.
 
 - Coordinates: `io.contek.invoker:invoker-deribit-starbase-api`.
 - Package root: `io.contek.invoker.deribit.starbase`.
@@ -15,9 +15,9 @@ SBE UDP, and REST utility interfaces needed by downstream consumers.
 - It must not depend on consumer applications or their DTOs.
 - `deribit-api` remains responsible for standard Deribit REST/WebSocket history, fills,
   positions, balances, account data, ticker/statistics, and standard execution.
-- Each downstream consumer owns its backend selection and adaptation. Market-data and execution backends must
-  be independently selectable, with standard WebSocket and legacy multicast rollback
-  paths retained.
+- Each downstream consumer owns its backend selection and adaptation. Market-data and
+  execution backends must be independently selectable, with standard WebSocket and legacy
+  multicast rollback paths retained.
 
 Do not add FIX, FIX Drop Copy, generated SBE codecs, or runtime XML parsing. Mass quote is
 outside the current scope unless a concrete caller later requires it.
@@ -130,7 +130,7 @@ unexpected disconnect immediately:
 Maintain one consolidated primitive local order-state store across sessions. Process
 immediate response fills and later unsolicited fills through the same exact match-ID
 de-duplication domain. Retain the originating session for cross-session lifecycle
-handling. String labels used by downstream consumers require a collision-free reversible int64
+handling. String labels presented by consumers require a collision-free reversible int64
 client-order-ID mapping that persists for the lifetime of every potentially live order.
 
 Unsupported semantics are explicit. In particular, the pinned v11 XML has no reduce-only
@@ -155,22 +155,22 @@ substitutes.
 
 ## Downstream consumer integration contract
 
-When integration resumes, keep exchange-neutral strategy interfaces unchanged and add the
-protocol choices inside the existing Deribit implementation packages. Replace the internal
-boolean selection with independent concepts equivalent to:
+When integration resumes, a downstream consumer should keep its exchange-neutral strategy
+interfaces unchanged and add protocol choices inside its Deribit-specific adapter. Model
+market-data and execution selection as independent concepts equivalent to:
 
 ```java
 enum MarketDataBackend { WEBSOCKET, LEGACY_MULTICAST, STARBASE }
 enum ExecutionBackend { STANDARD, STARBASE }
 ```
 
-Retain an existing `multicast=true` setting as a compatibility alias for
-`LEGACY_MULTICAST`; do not reinterpret it as Starbase. Add Starbase order-book and trade
-stream adapters while leaving ticker/statistical streams on the standard WebSocket path.
-The book adapter must translate only changed aggregated levels rather than rebuild the
-whole book per event.
+If a consumer already supports a `multicast=true` setting, retain it as a compatibility
+alias for `LEGACY_MULTICAST`; do not reinterpret it as Starbase. Add Starbase order-book
+and trade-stream adapters while leaving ticker/statistical streams on the standard
+WebSocket path. A book adapter must translate only changed aggregated levels rather than
+rebuild the whole book per event.
 
-Add a Starbase-backed `execution connector` by composition. It may provide place, amend,
+Add a Starbase-backed execution connector by composition. It may provide place, amend,
 cancel-by-client-ID, cancel-by-exchange-ID, scoped mass cancel, and cached open-order
 behavior only after the local state is authoritative. Historical fills, positions,
 balances, account summaries, and ordinary standard fallbacks continue through
@@ -213,9 +213,10 @@ Do not call the implementation complete or production-ready until:
 - the blocker and every remaining item in [implementation-status.md](implementation-status.md)
   is resolved or explicitly approved out of scope;
 - the public APIs compose the tested transport, recovery, state, and channel components;
-- a representative consumer supports independent Starbase market-data/execution selection without changing
-  exchange-neutral interfaces;
-- the Starbase artifact, `deribit-api`, and a representative consumer build and test together;
+- a representative consumer supports independent Starbase market-data/execution selection
+  without changing exchange-neutral interfaces;
+- the Starbase artifact, `deribit-api`, and a representative consumer build and test
+  together;
 - official replay and allocation validation pass; and
 - private test-environment lifecycle validation is recorded, or its absence is stated
   without claiming readiness.

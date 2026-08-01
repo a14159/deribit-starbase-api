@@ -6,18 +6,18 @@
 | --- | --- |
 | Overall state | **PAUSED — awaiting a corrected or clarified Deribit specification** |
 | Pause date | 2026-07-31 |
-| Active task | None |
+| Active task | `DOC-CONSUMER-PRIVACY`, generic downstream-consumer terminology and history sanitization |
 | Blocking task | `ORD-07`, exact REST-to-SBE open-order reconciliation |
 | Last completed task | `DOC-PRIVACY`, portable environments and reachable-history sanitization |
 | Local verification | Maven Wrapper 3.9.16: 292 tests, 0 failures, 0 errors, 0 skipped; public and fetched-remote history privacy scans passed |
 | Production readiness | **No** — component assembly, downstream consumer integration, joint builds, and private live validation remain |
-| Exact next action | Ask GitHub Support to purge the unreferenced pre-rewrite cached views; protocol work remains paused pending the next Deribit specification review |
+| Exact next action | Complete the explicitly requested `DOC-CONSUMER-PRIVACY` maintenance goal, then retain the GitHub cached-view purge and paused specification review as external follow-ups |
 
-There is intentionally no `IN_PROGRESS` implementation item. Do not start downstream
-protocol work merely because the local suite is green. First resolve the protocol identity
-gate described below, or get an explicit scope decision that changes the recovery
-requirement. The explicitly approved `DOC-PRIVACY` maintenance goal completed without
-resuming protocol work or altering production behavior.
+Only the explicitly requested `DOC-CONSUMER-PRIVACY` maintenance goal is in progress. Do
+not start downstream protocol work merely because the local suite is green. First resolve
+the protocol identity gate described below, or get an explicit scope decision that changes
+the recovery requirement. This maintenance goal changes public documentation and
+repository history only; it must not resume protocol work or alter production behavior.
 
 The independently approved `TEST-MIGRATION` maintenance goal is complete. It did not
 resume protocol work, alter production sources, or resolve `SPEC-01`/`ORD-07`.
@@ -60,7 +60,7 @@ clone must be replaced or carefully rebased and must never merge or push the old
 
 ## `TEST-MIGRATION` completion handoff
 
-The suite now uses a dependency-free Maven Surefire POJO convention:
+The suite uses a dependency-free Maven Surefire POJO convention:
 
 - `pom.xml` has no test dependency or JUnit property; it pins Surefire 3.5.4 and enables
   Java assertions;
@@ -225,11 +225,11 @@ paths. It does **not** mean the public APIs form a complete client:
    market-data API. Schema-known `BlockTrade` (template 33) has no hardcoded decoder and
    fails closed in packet dispatch.
 4. Exact REST/SBE reconnect reconciliation is absent and readiness must remain closed.
-5. No Starbase dependency, backend enums, stream adapters, execution connector, or health
-   integration has been validated in a downstream consumer.
-6. The three repositories have not been built together, and no private Starbase test
-   environment, credentials, authenticated traffic, deployment configuration, or rollback
-   exercise has been validated.
+5. No Starbase dependency, backend selection, stream adapters, execution connector, or
+   health integration has been validated in a downstream consumer.
+6. A complete downstream dependency graph has not been built together, and no private
+   Starbase test environment, credentials, authenticated traffic, deployment
+   configuration, or rollback exercise has been validated.
 
 ## Remaining work
 
@@ -239,23 +239,24 @@ paths. It does **not** mean the public APIs form a complete client:
 | `ORD-07` | BLOCKED | Reconcile missing, extra, matching, duplicate, and ambiguous REST/SBE orders before restoring readiness | `SPEC-01` |
 | `ASM-MD` | TODO | Compose both A/B feed instances, arbitration, retransmit, snapshot fallback, atomic books, and health into the public market-data lifecycle | New schema review; existing MD components |
 | `ASM-OE` | TODO | Compose TCP connection/session, dispatcher, state, commands, routing, events, recovery, and readiness into `StarbaseOrderEntryApi` | `ORD-07`; existing OE components |
-| `CON-01`–`CON-08` | TODO | Add dependency, independent backend selection, lifecycle holder, book/trade adapters, execution/amend/cancel/open-order paths, and health/rollback behavior | `ASM-MD`, `ASM-OE`; read the consumer repository's own guidance first |
-| `VAL-01`–`VAL-07` | TODO | Full artifact and joint builds, replay/recovery/TCP scenarios, end-to-end allocations, private smoke tests, and operations/configuration/rollback audit | All integration work |
+| `CON-01`–`CON-08` | TODO | Validate a representative consumer dependency, independent backend selection, lifecycle holder, book/trade adapters, execution/amend/cancel/open-order paths, and health/rollback behavior | `ASM-MD`, `ASM-OE`; follow the consumer repository's own guidance |
+| `VAL-01`–`VAL-07` | TODO | Full artifact and consumer-graph builds, replay/recovery/TCP scenarios, end-to-end allocations, private smoke tests, and operations/configuration/rollback audit | All integration work |
 
 Do not silently downgrade `ORD-07`, remove its readiness gate, or treat it as optional to
 unblock integration.
 
 ## Exact restart procedure
 
-1. Inspect `git status --short` in this repository and any dependency or consumer repository explicitly placed in scope as
-   applicable. Preserve user and unrelated changes.
+1. Inspect `git status --short` in this repository and any dependency or consumer
+   repository explicitly placed in scope. Preserve user and unrelated changes.
 2. Read [implementation-contract.md](implementation-contract.md), this file,
    [protocol-source-review.md](protocol-source-review.md), and
    [schema-manifest.md](schema-manifest.md).
 3. Download the current official SBE XML bundle, REST OpenAPI, binary reference/changelog,
    and SDK. Compute hashes and compare them with the pins in this repository.
 4. If the versions are unchanged or still contain no exact REST/SBE identity bridge,
-   record the new audit date/evidence here and stop. Do not begin downstream integration work.
+   record the new audit date/evidence here and stop. Do not begin downstream integration
+   work.
 5. If the specification changed, review every affected schema ID, version, template ID,
    block length, offset, enum, null, flag, and padding rule. Update checked-in reference
    resources, manifest, codecs, and golden tests test-first; do not generate or runtime
@@ -265,8 +266,9 @@ unblock integration.
    ambiguity rejection, snapshot failure/age, disconnect, and the readiness transition.
 7. Implement only the officially supported exact mapping, run focused and full tests, and
    record the RED/green evidence here.
-8. Complete `ASM-MD` and `ASM-OE` with deterministic integration tests before touching
-   consumer adapters. Then work through the remaining integration and validation rows one at a time.
+8. Complete `ASM-MD` and `ASM-OE` with deterministic integration tests before implementing
+   consumer adapters. Then work through the remaining integration and validation rows one
+   at a time.
 
 ## Reproducible local verification
 

@@ -15,9 +15,6 @@ mutable execution state. Do not create another independently maintained tracker.
 wire-layout or protocol-behavior change, also read `docs/protocol-source-review.md` and
 `docs/schema-manifest.md` completely and revalidate the current official sources.
 
-When changing a downstream consumer, read and obey that repository's own guidance
-before making changes there.
-
 The legacy Starbase Markdown files in `../deribit-api` are compatibility pointers only;
 this repository is authoritative. If any required local file is unavailable, stop and
 report the missing path instead of guessing at the architecture or current task.
@@ -33,12 +30,16 @@ IDE-installation, JDK-installation, Maven-installation, or temporary-directory p
 tracked file. Tool names, versions, portable environment-variable names, and placeholder
 paths are allowed when they improve reproducibility.
 
+Refer to downstream users of this library generically as consumers or consumer
+integrations. Do not record private consumer repository names, paths, internal type names,
+or consumer-specific task identifiers in tracked files.
+
 ## Persistent execution workflow
 
 At the beginning of every implementation turn:
 
-1. Inspect `git status --short` in this repository and any dependency or consumer repository explicitly placed in scope as
-   applicable. Preserve unrelated and user-owned changes.
+1. Inspect `git status --short` in this repository and in any dependency or consumer
+   repository explicitly placed in scope. Preserve unrelated and user-owned changes.
 2. Read the status checkpoint and its exact restart procedure.
 3. While the status is `PAUSED`, revalidate the upstream specification first. If it still
    lacks an exact REST/SBE order-identity bridge, record the evidence and do not start a
@@ -95,7 +96,8 @@ environment.
   and L3 reconstruction.
 - Keep standard history, account, positions, and appropriate ticker functionality in the
   existing `deribit-api`.
-- Require downstream consumers to keep market-data and execution backend selection independent.
+- Require downstream consumers to keep market-data and execution backend selection
+  independent.
 - Never truncate 64-bit Starbase identifiers or silently ignore/approximate unsupported
   order semantics.
 

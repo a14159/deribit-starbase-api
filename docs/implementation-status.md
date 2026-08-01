@@ -6,21 +6,55 @@
 | --- | --- |
 | Overall state | **PAUSED — awaiting a corrected or clarified Deribit specification** |
 | Pause date | 2026-07-31 |
-| Active task | `DOC-CONSUMER-PRIVACY`, generic downstream-consumer terminology and history sanitization |
+| Active task | None |
 | Blocking task | `ORD-07`, exact REST-to-SBE open-order reconciliation |
-| Last completed task | `DOC-PRIVACY`, portable environments and reachable-history sanitization |
-| Local verification | Maven Wrapper 3.9.16: 292 tests, 0 failures, 0 errors, 0 skipped; public and fetched-remote history privacy scans passed |
+| Last completed task | `DOC-CONSUMER-PRIVACY`, generic downstream-consumer terminology and reachable-history sanitization |
+| Local verification | Maven Wrapper 3.9.16: 292 tests, 0 failures, 0 errors, 0 skipped; 21 Markdown links; local and fetched-remote history privacy scans passed |
 | Production readiness | **No** — component assembly, downstream consumer integration, joint builds, and private live validation remain |
-| Exact next action | Complete the explicitly requested `DOC-CONSUMER-PRIVACY` maintenance goal, then retain the GitHub cached-view purge and paused specification review as external follow-ups |
+| Exact next action | Ask GitHub Support to purge the unreferenced pre-rewrite cached views; protocol work remains paused pending the next Deribit specification review |
 
-Only the explicitly requested `DOC-CONSUMER-PRIVACY` maintenance goal is in progress. Do
-not start downstream protocol work merely because the local suite is green. First resolve
-the protocol identity gate described below, or get an explicit scope decision that changes
-the recovery requirement. This maintenance goal changes public documentation and
-repository history only; it must not resume protocol work or alter production behavior.
+There is intentionally no `IN_PROGRESS` implementation item. Do not start downstream
+protocol work merely because the local suite is green. First resolve the protocol identity
+gate described below, or get an explicit scope decision that changes the recovery
+requirement. The explicitly approved `DOC-CONSUMER-PRIVACY` maintenance goal completed
+without resuming protocol work or altering production behavior.
 
 The independently approved `TEST-MIGRATION` maintenance goal is complete. It did not
 resume protocol work, alter production sources, or resolve `SPEC-01`/`ORD-07`.
+
+## `DOC-CONSUMER-PRIVACY` completion handoff
+
+The user explicitly approved this repository-maintenance goal during the protocol pause.
+It changes public documentation and repository history only; it does not change production
+sources, protocol behavior, or the `SPEC-01`/`ORD-07` gate.
+
+Completed work:
+
+- `AGENTS.md` now requires generic consumer terminology and generic status checks for any
+  dependency or consumer repository explicitly placed in scope;
+- the README, implementation contract, implementation status, and protocol source review
+  describe downstream integrations without naming or exposing a private consumer;
+- legacy consumer-specific task identifiers are now the generic `CON-01`–`CON-08` range;
+- private consumer repository names, sibling paths, internal type names, and task prefixes
+  were removed from current files and every reachable historical Markdown blob;
+- a verified local recovery bundle preserves the pre-rewrite history off-repository;
+- all six existing commits were rewritten without changing the reviewed current file tree;
+- `main` was force-pushed only after its explicit remote-SHA lease matched; and
+- a fresh fetch matched the advertised rewritten tip, with one branch, no tags, and no
+  pull-request refs.
+
+Verification on 2026-08-01:
+
+- `.\mvnw.cmd -B -ntp test`: 292 tests, 0 failures, 0 errors, 0 skipped;
+- all 21 relative Markdown link targets resolved;
+- `git diff --check` and the staged-tree scan passed;
+- all rewritten local refs and all fetched-remote commits passed case-insensitive scans for
+  the private consumer repository name and the retired consumer-specific identifiers; and
+- the final public file tree remained byte-for-byte identical before and after the history
+  rewrite.
+
+The GitHub cached-view caveat in the next handoff also applies to commits made unreachable
+by this rewrite. GitHub Support remains the required external follow-up.
 
 ## `DOC-PRIVACY` completion handoff
 

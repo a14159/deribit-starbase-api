@@ -11,8 +11,8 @@ public final class CancelOrderRequestDecoder {
 
   public static void validate(ByteBuffer buffer, int offset) {
     SessionCodecSupport.validateFixed(buffer, offset, TEMPLATE_ID, BODY_LENGTH);
-    if (clientOrderId(buffer, offset) < 0 || instrumentId(buffer, offset) < 0) {
-      throw new StarbaseProtocolException("negative cancel identifier");
+    if (clientOrderId(buffer, offset) == Long.MIN_VALUE || instrumentId(buffer, offset) < 0) {
+      throw new StarbaseProtocolException("invalid cancel identifier");
     }
   }
 

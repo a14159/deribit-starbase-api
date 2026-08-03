@@ -1,6 +1,6 @@
 # Starbase schema manifest
 
-Reviewed 2026-07-30: `https://statics.deribit.com/files/deribit-sbe-xmls.zip`, SHA-256
+Reviewed 2026-08-03: `https://statics.deribit.com/files/deribit-sbe-xmls.zip`, SHA-256
 `D36FEDB7AEB2FC5418FBFCFA9FBA80762E865689198B34A64DAEC8DB6D6FB425`.
 
 | Schema | ID | Version | Semantic version | Checked-in reference | SHA-256 |

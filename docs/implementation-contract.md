@@ -114,8 +114,15 @@ Never auto-close idle sessions: disconnect can cancel live orders. Unexpected di
 
 Maintain one primitive cross-session order store. De-duplicate immediate and later
 unsolicited fills in one exact match-ID domain; retain origin session for cross-session
-lifecycle. Consumer string labels need a collision-free reversible int64 client-order-ID
-mapping lasting as long as any related order may live.
+lifecycle. Expose schema-native signed-long client-order IDs directly, reserving only the
+SBE int64 null value. The String compatibility path uses the pinned generator alphabet
+`0-9a-zA-Z-_` and stateless positional base-64 conversion modulo `2^64 - 1`; never use a
+bounded allocation table. Map the residues bijectively onto every signed-long value except
+the SBE null sentinel. Numeric IDs convert back to an allocating canonical String, but the
+larger String domain cannot be globally collision-free: leading-zero, modulus, and other
+colliding inputs normalize to the same canonical String. Consumers must use an
+ID-generation scheme that is collision-free for the IDs it emits, while duplicate live
+numeric IDs fail closed.
 
 Make unsupported semantics explicit. XML v11 has no reduce-only field: reject or route the
 whole order through the configured standard backend, never drop the flag. Convert quantity

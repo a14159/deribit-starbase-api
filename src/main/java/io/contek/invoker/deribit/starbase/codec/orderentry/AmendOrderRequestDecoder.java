@@ -13,8 +13,8 @@ public final class AmendOrderRequestDecoder {
 
   public static void validate(ByteBuffer buffer, int offset) {
     SessionCodecSupport.validateFixed(buffer, offset, TEMPLATE_ID, BODY_LENGTH);
-    if (clientOrderId(buffer, offset) < 0 || instrumentId(buffer, offset) < 0) {
-      throw new StarbaseProtocolException("negative amend identifier");
+    if (clientOrderId(buffer, offset) == Long.MIN_VALUE || instrumentId(buffer, offset) < 0) {
+      throw new StarbaseProtocolException("invalid amend identifier");
     }
     if (priceMantissa(buffer, offset) == Price9Codec.NULL_MANTISSA) {
       throw new StarbaseProtocolException("null amend price");

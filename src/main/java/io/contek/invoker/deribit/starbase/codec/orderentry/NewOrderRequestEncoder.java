@@ -222,8 +222,9 @@ public final class NewOrderRequestEncoder {
       int timeInForce,
       int flags,
       int selfTradingMode) {
-    if (clientOrderId < 0 || instrumentId < 0) {
-      throw new IllegalArgumentException("order identifiers must be non-negative");
+    if (clientOrderId == Long.MIN_VALUE || instrumentId < 0) {
+      throw new IllegalArgumentException(
+          "clientOrderId must not be SBE null and instrumentId must be non-negative");
     }
     if (quantityMantissa <= 0 || quantityExponent <= Byte.MIN_VALUE
         || quantityExponent > Byte.MAX_VALUE) {

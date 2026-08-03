@@ -28,7 +28,8 @@ Project context:
 - Exact 64-bit registry/L3 book, aggregation, atomic snapshots, coherent publication, and
   cached primitive channels.
 - TCP framing/write/lifecycle, authentication, heartbeat, sequencing, reconnect/readiness,
-  correlation, order/fill state, client-ID mapping, and one-send A/B routing.
+  correlation, order/fill state, native-long and canonical bidirectional String client
+  IDs, and one-send A/B routing.
 - Five REST utilities and an immutable, synchronous single-flight open-order cache with a
   one-minute minimum attempt interval.
 - Deterministic official-PCAP replay and hot-path allocation checks.
@@ -49,9 +50,8 @@ Tests have no framework dependency. Surefire's auto-detected
 zero-argument `test*` methods; local `TestAssertions` supplies assertions. The baseline
 test verifies Java assertions are enabled.
 
-Two consecutive clean runs on 2026-07-31 passed all 292 tests (no failures, errors, or
-skips). No private live Starbase environment was available, so this proves local behavior
-only.
+A clean run on 2026-08-03 passed all 300 tests (no failures, errors, or skips). No private
+live Starbase environment was available, so this proves local behavior only.
 
 For machine-specific launch notes, copy
 [`docs/local-environment.example.md`](docs/local-environment.example.md) to ignored

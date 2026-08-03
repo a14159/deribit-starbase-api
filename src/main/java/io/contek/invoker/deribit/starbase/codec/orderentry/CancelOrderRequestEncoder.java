@@ -38,8 +38,9 @@ public final class CancelOrderRequestEncoder {
   }
 
   public static void validateArguments(long clientOrderId, long instrumentId) {
-    if (clientOrderId < 0 || instrumentId < 0) {
-      throw new IllegalArgumentException("cancel identifiers must be non-negative");
+    if (clientOrderId == Long.MIN_VALUE || instrumentId < 0) {
+      throw new IllegalArgumentException(
+          "clientOrderId must not be SBE null and instrumentId must be non-negative");
     }
   }
 

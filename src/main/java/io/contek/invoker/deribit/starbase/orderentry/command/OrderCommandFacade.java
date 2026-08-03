@@ -8,6 +8,7 @@ import io.contek.invoker.deribit.starbase.common.NanoClock;
 import io.contek.invoker.deribit.starbase.orderentry.connection.SessionSequenceState;
 import io.contek.invoker.deribit.starbase.orderentry.connection.TcpFrameEncoder;
 import io.contek.invoker.deribit.starbase.orderentry.connection.TcpFrameWriter;
+import io.contek.invoker.deribit.starbase.orderentry.state.ClientOrderIdMap;
 import io.contek.invoker.deribit.starbase.orderentry.state.CorrelationTable;
 import java.nio.ByteBuffer;
 import java.util.Objects;
@@ -25,6 +26,8 @@ public final class OrderCommandFacade implements TcpFrameEncoder {
   private static final int ENCODE_AMEND = 3;
   private static final int ENCODE_CANCEL = 4;
   private static final int ENCODE_MASS_CANCEL = 5;
+
+  private static final ClientOrderIdMap CLIENT_ORDER_IDS = new ClientOrderIdMap();
 
   private final OrderCommandReadiness readiness;
   private final TcpFrameWriter writer;
@@ -71,6 +74,25 @@ public final class OrderCommandFacade implements TcpFrameEncoder {
     this.timeoutNanos = timeoutNanos;
   }
 
+  public long newLimit(
+      String clientOrderId,
+      long instrumentId,
+      long priceMantissa,
+      long quantityMantissa,
+      int quantityExponent,
+      boolean showQuantityNull,
+      long showQuantityMantissa,
+      long selfMatchPreventionId,
+      int side,
+      int timeInForce,
+      int flags,
+      int selfTradingMode) {
+    return newLimit(
+        CLIENT_ORDER_IDS.map(clientOrderId), instrumentId, priceMantissa, quantityMantissa,
+        quantityExponent, showQuantityNull, showQuantityMantissa, selfMatchPreventionId, side,
+        timeInForce, flags, selfTradingMode);
+  }
+
   public synchronized long newLimit(
       long clientOrderId,
       long instrumentId,
@@ -104,6 +126,24 @@ public final class OrderCommandFacade implements TcpFrameEncoder {
     return send(COMMAND_NEW, clientOrderId);
   }
 
+  public long newMarket(
+      String clientOrderId,
+      long instrumentId,
+      long quantityMantissa,
+      int quantityExponent,
+      boolean showQuantityNull,
+      long showQuantityMantissa,
+      long selfMatchPreventionId,
+      int side,
+      int timeInForce,
+      int flags,
+      int selfTradingMode) {
+    return newMarket(
+        CLIENT_ORDER_IDS.map(clientOrderId), instrumentId, quantityMantissa, quantityExponent,
+        showQuantityNull, showQuantityMantissa, selfMatchPreventionId, side, timeInForce, flags,
+        selfTradingMode);
+  }
+
   public synchronized long newMarket(
       long clientOrderId,
       long instrumentId,
@@ -135,6 +175,20 @@ public final class OrderCommandFacade implements TcpFrameEncoder {
     return send(COMMAND_NEW, clientOrderId);
   }
 
+  public long amend(
+      String clientOrderId,
+      long instrumentId,
+      long priceMantissa,
+      long quantityMantissa,
+      int quantityExponent,
+      boolean showQuantityNull,
+      long showQuantityMantissa,
+      int flags) {
+    return amend(
+        CLIENT_ORDER_IDS.map(clientOrderId), instrumentId, priceMantissa, quantityMantissa,
+        quantityExponent, showQuantityNull, showQuantityMantissa, flags);
+  }
+
   public synchronized long amend(
       long clientOrderId,
       long instrumentId,
@@ -158,6 +212,10 @@ public final class OrderCommandFacade implements TcpFrameEncoder {
     this.flags = flags;
     encodeKind = ENCODE_AMEND;
     return send(COMMAND_AMEND, clientOrderId);
+  }
+
+  public long cancel(String clientOrderId, long instrumentId) {
+    return cancel(CLIENT_ORDER_IDS.map(clientOrderId), instrumentId);
   }
 
   public synchronized long cancel(long clientOrderId, long instrumentId) {

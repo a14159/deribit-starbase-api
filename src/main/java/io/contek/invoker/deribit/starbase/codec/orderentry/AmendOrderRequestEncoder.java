@@ -74,8 +74,9 @@ public final class AmendOrderRequestEncoder {
       boolean showQuantityNull,
       long showQuantityMantissa,
       int flags) {
-    if (clientOrderId < 0 || instrumentId < 0) {
-      throw new IllegalArgumentException("amend identifiers must be non-negative");
+    if (clientOrderId == Long.MIN_VALUE || instrumentId < 0) {
+      throw new IllegalArgumentException(
+          "clientOrderId must not be SBE null and instrumentId must be non-negative");
     }
     if (priceMantissa == Price9Codec.NULL_MANTISSA) {
       throw new IllegalArgumentException("amend price is required");

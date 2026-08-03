@@ -69,6 +69,52 @@ public final class OrderCommandFacadeTest {
     assertEquals(13, transport.sequence);
   }
 
+  public void testSignedNativeClientOrderIdRoundTripsAcrossNewAmendAndCancel() {
+    RecordingTransport transport = new RecordingTransport();
+    CorrelationTable correlations = new CorrelationTable(4, 300);
+    OrderCommandFacade commands =
+        commands(transport, correlations, new SessionSequenceState(1, 1));
+    long clientOrderId = Long.MIN_VALUE + 1;
+
+    assertEquals(
+        300,
+        commands.newMarket(
+            clientOrderId, 12, 13, -2, true, 0, 14, -1, -2, 0, 1));
+    assertEquals(clientOrderId, transport.clientOrderId);
+    assertEquals(301, commands.amend(clientOrderId, 12, 15, 16, -2, true, 0, 2));
+    assertEquals(clientOrderId, transport.clientOrderId);
+    assertEquals(302, commands.cancel(clientOrderId, 12));
+    assertEquals(clientOrderId, transport.clientOrderId);
+    assertThrows(
+        IllegalArgumentException.class, () -> commands.cancel(Long.MIN_VALUE, 12));
+    assertEquals(3, correlations.size());
+  }
+
+  public void testStringClientOrderIdOverloadsUseDeterministicNumericIds() {
+    RecordingTransport transport = new RecordingTransport();
+    CorrelationTable correlations = new CorrelationTable(4, 400);
+    OrderCommandFacade commands =
+        commands(transport, correlations, new SessionSequenceState(1, 1));
+
+    assertEquals(
+        400,
+        commands.newLimit(
+            "0-ab-BTC-PERPETUAL", 12, 15, 16, -2, true, 0, 14, 1, 0, 0, 1));
+    assertEquals(8_048_956_845_452_111_629L, transport.clientOrderId);
+    assertEquals(
+        401,
+        commands.newMarket(
+            "1-ab-BTC-PERPETUAL", 12, 16, -2, true, 0, 14, -1, -2, 0, 1));
+    assertEquals(8_048_957_120_330_018_573L, transport.clientOrderId);
+    assertEquals(
+        402,
+        commands.amend(
+            "1-ab-BTC-PERPETUAL", 12, 17, 18, -2, true, 0, 2));
+    assertEquals(8_048_957_120_330_018_573L, transport.clientOrderId);
+    assertEquals(403, commands.cancel("1-ab-BTC-PERPETUAL", 12));
+    assertEquals(8_048_957_120_330_018_573L, transport.clientOrderId);
+  }
+
   public void testNotReadyAndPendingFrameRejectBeforeCorrelationOrSequenceMutation() {
     CorrelationTable correlations = new CorrelationTable(4, 1);
     SessionSequenceState sequences = new SessionSequenceState(1, 1);
@@ -163,6 +209,30 @@ public final class OrderCommandFacadeTest {
         "order command facade allocated bytes");
   }
 
+  public void testWarmedStringNewOrderPathAllocatesNothing() {
+    ThreadMXBean bean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+    if (!bean.isThreadAllocatedMemorySupported()) {
+      return;
+    }
+    bean.setThreadAllocatedMemoryEnabled(true);
+    CorrelationTable correlations = new CorrelationTable(1, 1);
+    OrderCommandFacade commands =
+        commands((b, o, l) -> l, correlations, new SessionSequenceState(1, 1));
+    String clientOrderId = "1-ab-BTC-PERPETUAL";
+    for (int iteration = 0; iteration < 1_000_000; iteration++) {
+      exerciseString(commands, correlations, clientOrderId);
+    }
+    long threadId = Thread.currentThread().threadId();
+    long before = bean.getThreadAllocatedBytes(threadId);
+    for (int iteration = 0; iteration < 100_000; iteration++) {
+      exerciseString(commands, correlations, clientOrderId);
+    }
+    assertEquals(
+        0L,
+        bean.getThreadAllocatedBytes(threadId) - before,
+        "String order command facade allocated bytes");
+  }
+
   private static OrderCommandFacade commands(
       TcpFrameTransport transport,
       CorrelationTable correlations,
@@ -173,6 +243,16 @@ public final class OrderCommandFacadeTest {
 
   private static void exercise(
       OrderCommandFacade commands, CorrelationTable correlations, long clientOrderId) {
+    long correlation =
+        commands.newLimit(clientOrderId, 2, 3, 4, -1, true, 0, 0, 1, 0, 0, 0);
+    if (!correlations.release(correlation)) {
+      throw new AssertionError("correlation release failed");
+    }
+    sink = correlation;
+  }
+
+  private static void exerciseString(
+      OrderCommandFacade commands, CorrelationTable correlations, String clientOrderId) {
     long correlation =
         commands.newLimit(clientOrderId, 2, 3, 4, -1, true, 0, 0, 1, 0, 0, 0);
     if (!correlations.release(correlation)) {

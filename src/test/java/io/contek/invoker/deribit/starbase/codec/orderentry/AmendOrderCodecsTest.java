@@ -50,6 +50,24 @@ public final class AmendOrderCodecsTest {
     assertEquals(88, TcpHeaderCodec.validateFrame(frame, 0));
   }
 
+  public void testSignedClientOrderIdRoundTripsButSbeNullFailsClosed() {
+    ByteBuffer frame = ByteBuffer.allocateDirect(128).order(ByteOrder.LITTLE_ENDIAN);
+    long clientOrderId = Long.MIN_VALUE + 1;
+
+    AmendOrderRequestEncoder.encode(
+        frame, 0, clientOrderId, 2, 3, 4, 5, -1, true, 0, 0, 1, 0, 1);
+    AmendOrderRequestDecoder.validate(frame, 0);
+    assertEquals(clientOrderId, AmendOrderRequestDecoder.clientOrderId(frame, 0));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            AmendOrderRequestEncoder.encode(
+                frame, 0, Long.MIN_VALUE, 2, 3, 4, 5, -1, true, 0, 0, 1, 0, 1));
+    frame.putLong(32, Long.MIN_VALUE);
+    assertThrows(
+        StarbaseProtocolException.class, () -> AmendOrderRequestDecoder.validate(frame, 0));
+  }
+
   public void testResponsePinsFixedFieldsImmediateFillAndComboLeg() {
     ByteBuffer frame = responseFrame();
 

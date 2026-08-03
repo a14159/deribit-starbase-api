@@ -37,6 +37,20 @@ public final class OrderSessionRouterTest {
     assertEquals(22, router.originSessionId(902));
   }
 
+  public void testSignedNativeClientOrderIdRoutesExceptForSbeNullSentinel() {
+    FakeEndpoint sideA = new FakeEndpoint(11, ProductGroup.BTC, GatewaySide.A, true, 1001);
+    OrderSessionRouter router = new OrderSessionRouter(1, sideA);
+    long clientOrderId = Long.MIN_VALUE + 1;
+
+    assertEquals(1001, router.routeNewOrder(ProductGroup.BTC, clientOrderId));
+    assertEquals(11, router.originSessionId(clientOrderId));
+    assertTrue(router.releaseOrigin(clientOrderId));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> router.routeNewOrder(ProductGroup.BTC, Long.MIN_VALUE));
+    assertEquals(1, sideA.sends);
+  }
+
   public void testUnavailableProductFailsBeforeSendOrOriginMutation() {
     FakeEndpoint sideA = new FakeEndpoint(11, ProductGroup.BTC, GatewaySide.A, false, 1);
     FakeEndpoint sideB = new FakeEndpoint(22, ProductGroup.BTC, GatewaySide.B, false, 2);

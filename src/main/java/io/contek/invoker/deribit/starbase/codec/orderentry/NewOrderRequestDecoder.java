@@ -29,8 +29,8 @@ public final class NewOrderRequestDecoder {
     long quantity = quantityMantissa(buffer, offset);
     int quantityExponent = quantityExponent(buffer, offset);
     int flags = flags(buffer, offset);
-    if (clientOrderId(buffer, offset) < 0 || instrumentId(buffer, offset) < 0) {
-      throw new StarbaseProtocolException("negative new-order identifier");
+    if (clientOrderId(buffer, offset) == Long.MIN_VALUE || instrumentId(buffer, offset) < 0) {
+      throw new StarbaseProtocolException("invalid new-order identifier");
     }
     if (quantity <= 0 || quantityExponent == Decimal72Codec.NULL_EXPONENT) {
       throw new StarbaseProtocolException("invalid new-order quantity");

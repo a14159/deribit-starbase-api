@@ -1,7 +1,14 @@
 # Starbase protocol source review
 
-Reviewed 2026-07-30. Machine-verifiable pins and checked-in schemas are recorded under
+Reviewed 2026-08-03. Machine-verifiable pins and checked-in schemas are recorded under
 FND-03 in [schema-manifest.md](schema-manifest.md).
+
+The 2026-08-03 restart audit re-downloaded the XML bundle, REST OpenAPI, and SDK; all three
+remain byte-for-byte pinned below. The current binary-reference Markdown has SHA-256
+`908CF0464BD0A065C2851B7085D9ED5657740C9541F0F857D105600844008369`, and the current
+Starbase changelog Markdown has SHA-256
+`A9F2BC9F7921A6639855BCAD075A49BF4748612729679A2513C86504C6BE52F3`. Neither adds an
+exact REST/SBE order-identity bridge, so `SPEC-01`/`ORD-07` remain paused.
 
 ## Authoritative sources
 

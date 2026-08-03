@@ -31,6 +31,21 @@ public final class CancelOrderCodecsTest {
     assertEquals(56, TcpHeaderCodec.validateFrame(frame, 0));
   }
 
+  public void testSignedClientOrderIdRoundTripsButSbeNullFailsClosed() {
+    ByteBuffer frame = ByteBuffer.allocateDirect(96).order(ByteOrder.LITTLE_ENDIAN);
+    long clientOrderId = Long.MIN_VALUE + 1;
+
+    CancelOrderRequestEncoder.encode(frame, 0, clientOrderId, 2, 3, 1, 0, 1);
+    CancelOrderRequestDecoder.validate(frame, 0);
+    assertEquals(clientOrderId, CancelOrderRequestDecoder.clientOrderId(frame, 0));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> CancelOrderRequestEncoder.encode(frame, 0, Long.MIN_VALUE, 2, 3, 1, 0, 1));
+    frame.putLong(32, Long.MIN_VALUE);
+    assertThrows(
+        StarbaseProtocolException.class, () -> CancelOrderRequestDecoder.validate(frame, 0));
+  }
+
   public void testExchangeOrderIdRequestPinsEveryExactField() {
     ByteBuffer frame = ByteBuffer.allocateDirect(96).order(ByteOrder.LITTLE_ENDIAN);
 

@@ -30,8 +30,8 @@ public final class OrderSessionRouter {
 
   public synchronized long routeNewOrder(ProductGroup productGroup, long clientOrderId) {
     Objects.requireNonNull(productGroup, "productGroup");
-    if (clientOrderId < 0) {
-      throw new IllegalArgumentException("clientOrderId must be non-negative");
+    if (clientOrderId == Long.MIN_VALUE) {
+      throw new IllegalArgumentException("clientOrderId is the SBE null value");
     }
     if (find(clientOrderId) >= 0) {
       throw new IllegalStateException("client order already has an origin session");

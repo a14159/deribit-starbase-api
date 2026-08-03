@@ -8,14 +8,76 @@
 | Pause date | 2026-07-31 |
 | Active task | None |
 | Blocking task | `ORD-07`, exact REST-to-SBE open-order reconciliation |
-| Last completed task | `DOC-COMPACT`, repository Markdown context reduction |
-| Local verification | Prior clean suite: 292/292. `DOC-COMPACT`: focused baseline 1/1; 21/21 relative links, preservation/fence audits, and `git diff --check` passed. |
+| Last completed task | `CLIENT-ID-01`, native-long and canonical bidirectional String client-order IDs |
+| Local verification | 2026-08-03: affected client-ID/codec/router suite 46/46; clean suite 300/300. Official XML bundle, REST OpenAPI, and SDK remained byte-for-byte pinned. |
 | Production readiness | **No** — component assembly, downstream consumer integration, joint builds, and private live validation remain |
 | Exact next action | Ask GitHub Support to purge the unreferenced pre-rewrite cached views. Protocol work remains paused pending the next Deribit specification review. |
 
-There is no `IN_PROGRESS` implementation item: a green suite does not bypass the identity
-gate. The explicitly requested `DOC-COMPACT` maintenance goal is complete without changing
-protocol requirements/behavior, evidence, blockers, or restart state.
+There is no active implementation item: a green suite does not bypass the identity gate.
+The separately requested, pause-safe `CLIENT-ID-01` API/correlation maintenance goal is
+complete without changing SBE layout, REST/SBE reconciliation, readiness, or downstream
+assembly. The existing `SPEC-01`/`ORD-07` pause remains authoritative.
+
+## `CLIENT-ID-01` completion handoff
+
+The user requested two client-order-ID paths on 2026-08-03:
+
+- accept schema-native long IDs without a String mapping; and
+- retain String IDs through deterministic positional encoding instead of a bounded table,
+  including an allocating numeric-to-String reverse conversion.
+
+`ClientOrderIdMap` is now stateless. Native IDs pass through across the complete signed SBE
+domain except `Long.MIN_VALUE`, which is the schema null sentinel. String IDs use the
+pinned generator alphabet `0-9a-zA-Z-_`, positional base 64, and reduction modulo
+`2^64 - 1`. The odd modulus prevents a long fixed suffix from discarding all earlier
+counter digits, as radix-64 signed-long overflow would do. Residues map bijectively onto
+the non-null signed-long domain, so every valid numeric ID has a canonical String and
+`map(externalId(id)) == id`.
+
+The inverse allocates its returned String, as explicitly accepted. The original input is
+not recoverable after a collision: leading-zero inputs and positional values separated by
+the modulus normalize to the same canonical String. Callers must use a generation scheme
+that is collision-free for their emitted set; live-state duplicate checks remain
+fail-closed. A deterministic 100,000-ID sample from the referenced
+`counter + run + market` generator shape had no collisions.
+
+`OrderCommandFacade` retains the native-long overloads and adds String overloads for limit,
+market, amend, and cancel commands. New/amend/cancel request validation and A/B session
+routing now accept negative schema-native client IDs while still rejecting the null
+sentinel. No wire offsets or field widths changed.
+
+Required upstream revalidation on 2026-08-03 found no new REST/SBE identity bridge and no
+schema change:
+
+- XML bundle SHA-256
+  `D36FEDB7AEB2FC5418FBFCFA9FBA80762E865689198B34A64DAEC8DB6D6FB425`;
+- REST OpenAPI SHA-256
+  `F2F2DD44CC4ED63ACC8C4E30545B2829514BF20566EE0C6AEFBA16D0F6F267DB`;
+- SDK 0.5.1 archive SHA-256
+  `57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`;
+- current binary-reference Markdown SHA-256
+  `908CF0464BD0A065C2851B7085D9ED5657740C9541F0F857D105600844008369`;
+  and
+- current Starbase changelog Markdown SHA-256
+  `A9F2BC9F7921A6639855BCAD075A49BF4748612729679A2513C86504C6BE52F3`.
+
+Test-first evidence:
+
+- RED: initial mapping tests failed compilation with 13 errors against the old bounded
+  constructors/API; signed-native tests then exposed two non-negative validation failures;
+  facade String-overload tests failed compilation with four errors; reverse-conversion
+  tests failed compilation with 13 errors; and the full-domain inverse boundary tests
+  produced three expected failures against the interim `Long.MAX_VALUE` modulus.
+- PASS: focused mapping/facade tests, 16/16; affected mapping/facade/router/request-codec
+  tests, 46/46; and `mvnw clean test`, 300/300 with no failures, errors, or skips.
+- Post-warm-up native and String forward conversion allocated zero bytes. The canonical
+  reverse conversion intentionally allocates.
+
+Changed production files: `ClientOrderIdMap`, `OrderCommandFacade`,
+`OrderSessionRouter`, and the new/amend/cancel request encoder/decoder pairs. Changed tests:
+`ClientOrderIdMapTest`, `OrderCommandFacadeTest`, `OrderSessionRouterTest`, and the three
+request-codec tests. Private live validation was unavailable; this maintenance task does
+not claim production readiness.
 
 ## Why work is paused
 
@@ -69,7 +131,7 @@ below; the tests and source are the detailed executable record, while
 | `MDA-01`–`MDA-04` | Fixed primitive channel caches; reference routing; reconstructed L3-to-level channel; trade-summary/trade channel; stateful PCAP-to-channel replay | `MarketDataChannelRoutingTest`, `OrderBookChannelTest`, `TradesChannelTest`, `PcapToChannelsReplayTest` |
 | `OEC-01`–`OEC-06` | 25 hardcoded order-entry session, new/amend/cancel/mass-cancel, response/reject, fill, and unsolicited lifecycle layouts with fail-closed dispatch | `codec/orderentry/*Test.java` |
 | `OET-01`–`OET-07` | Reusable TCP frame assembly; serialized partial-write handling; explicit connection loop; authentication; heartbeat/inactivity; sequence/resend; reconnect/backoff/readiness gates | `orderentry/connection/*Test.java` |
-| `ORD-01`–`ORD-06` | Fixed correlation table; cross-session local order state; command encoder facade; exact-once fills; reversible label-to-int64 IDs with persistence hooks; deterministic one-send A/B routing | `orderentry/state/*Test.java`, `orderentry/command/*Test.java` |
+| `ORD-01`–`ORD-06`, `CLIENT-ID-01` | Fixed correlation table; cross-session local order state; command encoder facade; exact-once fills; native signed-long and stateless canonical bidirectional String client IDs; deterministic one-send A/B routing | `orderentry/state/*Test.java`, `orderentry/command/*Test.java` |
 | `RST-01`–`RST-05` | Configured bearer/no-auth HTTP transport; instruments and registry bootstrap; open-order parsing; cancel-all/lock/unlock; rate-limited recovery cache | `rest/*Test.java` |
 
 ### Official market-data fixture result
@@ -88,7 +150,8 @@ Post-warm-up tests report zero bytes on implemented normal paths for:
 - feed sequence, A/B arbitration, snapshot synchronization, and diagnostics;
 - instrument lookup, L3 mutation, aggregation, and coherent book replay;
 - TCP frame assembly/write, heartbeat, and sequence state; and
-- correlation/order lifecycle, command encode/send, fills, client-ID lookup, and routing.
+- correlation/order lifecycle, command encode/send, fills, client-ID forward conversion,
+  and routing.
 
 The individual measured methods remain discoverable with:
 

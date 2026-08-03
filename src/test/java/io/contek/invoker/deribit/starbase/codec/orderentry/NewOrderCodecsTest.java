@@ -75,6 +75,24 @@ public final class NewOrderCodecsTest {
     assertEquals(-1, NewOrderRequestDecoder.showQuantityExponent(frame, 0));
   }
 
+  public void testSignedClientOrderIdRoundTripsButSbeNullFailsClosed() {
+    ByteBuffer frame = ByteBuffer.allocateDirect(128).order(ByteOrder.LITTLE_ENDIAN);
+    long clientOrderId = Long.MIN_VALUE + 1;
+
+    NewOrderRequestEncoder.encodeMarket(
+        frame, 0, clientOrderId, 2, 3, 4, -1, true, 0, 0, 1, 0, 0, 0, 1, 0, 1);
+    NewOrderRequestDecoder.validate(frame, 0);
+    assertEquals(clientOrderId, NewOrderRequestDecoder.clientOrderId(frame, 0));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            NewOrderRequestEncoder.encodeMarket(
+                frame, 0, Long.MIN_VALUE, 2, 3, 4, -1, true, 0, 0, 1, 0, 0, 0, 1, 0, 1));
+    frame.putLong(32, Long.MIN_VALUE);
+    assertThrows(
+        StarbaseProtocolException.class, () -> NewOrderRequestDecoder.validate(frame, 0));
+  }
+
   public void testResponsePinsFixedFieldsImmediateFillAndComboLeg() {
     ByteBuffer frame = responseFrame();
 

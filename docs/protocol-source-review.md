@@ -1,10 +1,11 @@
 # Starbase protocol source review
 
-Reviewed 2026-08-03. Machine-verifiable pins and checked-in schemas are recorded under
+Reviewed 2026-08-06. Machine-verifiable pins and checked-in schemas are recorded under
 FND-03 in [schema-manifest.md](schema-manifest.md).
 
-The 2026-08-03 restart audit re-downloaded the XML bundle, REST OpenAPI, and SDK; all three
-remain byte-for-byte pinned below. The current binary-reference Markdown has SHA-256
+The 2026-08-06 restart audit re-downloaded the XML bundle, REST OpenAPI, SDK,
+binary-reference Markdown, and Starbase changelog Markdown; all five remain byte-for-byte
+pinned below. The current binary-reference Markdown has SHA-256
 `908CF0464BD0A065C2851B7085D9ED5657740C9541F0F857D105600844008369`, and the current
 Starbase changelog Markdown has SHA-256
 `A9F2BC9F7921A6639855BCAD075A49BF4748612729679A2513C86504C6BE52F3`. Neither adds an
@@ -41,12 +42,14 @@ session/order/fill/cancel families. Mass quote and FIX Drop Copy remain out of s
 
 ## REST rollout scope
 
-RST-01 was revalidated from OpenAPI on 2026-07-31. Private calls use Bearer authentication
-with the Starbase REST key; public instruments explicitly has no security. All five calls
-are HTTP `GET`. All responses use JSON-RPC 2.0 envelopes; failures contain numeric `code`,
-string `message`, and optional untyped `data`. The overview still calls REST forthcoming,
-so OpenAPI governs implementation and production readiness still needs private-connectivity
-validation. It defines exactly:
+RST-01 was revalidated from the byte-for-byte unchanged OpenAPI on 2026-08-06. The OpenAPI
+and generated endpoint reference still specify Bearer authentication with the Starbase REST
+key; public instruments explicitly has no security. The separately rendered REST Order
+Gateway Authentication guide currently says HTTP Basic instead. This official-source
+conflict requires clarification before changing authentication behavior; this paused audit
+makes no such change. All five calls are HTTP `GET`. All responses use JSON-RPC 2.0
+envelopes; failures contain numeric `code`, string `message`, and optional untyped `data`.
+The OpenAPI defines exactly:
 
 - `GET /api/v2/public/get_instruments`
 - `GET /api/v2/private/get_open_orders`
@@ -72,7 +75,7 @@ REST is private-connectivity control/recovery, never live ordering. Cache/rate-l
   it.
 - Code uses pinned XML names/IDs; friendly doc aliases create no templates. FIX/FIX Drop
   Copy remain unimplemented.
-- SDK 0.5.1 (SHA-256
+- SDK 0.5.1, re-downloaded on 2026-08-06 (SHA-256
   `57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`) handles numeric
   SBE `client_order_id`/`order_id` but has no REST client/model or UUID/string bridge. With
   REST's UUID-style `order_id` and nullable `label`, exact reconnect reconciliation remains

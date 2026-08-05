@@ -9,14 +9,19 @@
 | Active task | None |
 | Blocking task | `ORD-07`, exact REST-to-SBE open-order reconciliation |
 | Last completed task | `CLIENT-ID-01`, native-long and canonical bidirectional String client-order IDs |
-| Local verification | 2026-08-03: affected client-ID/codec/router suite 46/46; clean suite 300/300. Official XML bundle, REST OpenAPI, and SDK remained byte-for-byte pinned. |
+| Local verification | 2026-08-06: fresh official XML bundle, REST OpenAPI, SDK, binary-reference Markdown, and changelog Markdown remained byte-for-byte pinned; no exact REST/SBE identity bridge was added. Last clean suite: 2026-08-03, 300/300. |
 | Production readiness | **No** — component assembly, downstream consumer integration, joint builds, and private live validation remain |
-| Exact next action | Ask GitHub Support to purge the unreferenced pre-rewrite cached views. Protocol work remains paused pending the next Deribit specification review. |
+| Exact next action | Wait for a newer Deribit specification or formal identity-mapping clarification, then repeat `SPEC-01`; do not start `ORD-07` or downstream assembly without the exact bridge. |
 
 There is no active implementation item: a green suite does not bypass the identity gate.
 The separately requested, pause-safe `CLIENT-ID-01` API/correlation maintenance goal is
 complete without changing SBE layout, REST/SBE reconciliation, readiness, or downstream
 assembly. The existing `SPEC-01`/`ORD-07` pause remains authoritative.
+
+The 2026-08-06 restart audit downloaded every required official source again. All five
+download hashes match the 2026-08-03 pins, and the OpenAPI `Order` model still exposes a
+UUID-style string `order_id` and optional nullable `label`, but no numeric SBE `orderId`,
+`clientOrderId`, or documented reversible mapping. No implementation task was resumed.
 
 ## `CLIENT-ID-01` completion handoff
 
@@ -114,6 +119,31 @@ The blocker was rechecked three times on 2026-07-31 against:
 The SDK has numeric SBE IDs but no REST model/client or UUID bridge. Deribit must expose a
 shared exact SBE identifier in REST or formally specify another collision-free reversible
 mapping.
+
+### 2026-08-06 restart audit
+
+Fresh official downloads remained byte-for-byte unchanged:
+
+- XML bundle SHA-256
+  `D36FEDB7AEB2FC5418FBFCFA9FBA80762E865689198B34A64DAEC8DB6D6FB425`;
+- REST OpenAPI SHA-256
+  `F2F2DD44CC4ED63ACC8C4E30545B2829514BF20566EE0C6AEFBA16D0F6F267DB`;
+- SDK 0.5.1 archive SHA-256
+  `57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`;
+- binary-reference Markdown SHA-256
+  `908CF0464BD0A065C2851B7085D9ED5657740C9541F0F857D105600844008369`;
+  and
+- Starbase changelog Markdown SHA-256
+  `A9F2BC9F7921A6639855BCAD075A49BF4748612729679A2513C86504C6BE52F3`.
+
+The order-entry XML remains schema 2101/v11/1.3 with signed-64-bit `OrderId` and
+`ClientOrderId`. The unchanged OpenAPI 2.0 `Order` properties remain `order_id`,
+`instrument_name`, `side`, `price`, `amount`, `filled_amount`, `average_price`,
+`order_state`, `order_type`, `time_in_force`, `post_only`, `reduce_only`,
+`creation_timestamp`, `last_update_timestamp`, `label`, `api`, `max_show`, `profit_loss`,
+and `commission`. Its required `order_id` remains a UUID-style string; neither it nor the
+SDK supplies an exact bridge to either SBE identifier. `SPEC-01` therefore remains waiting
+and `ORD-07` remains blocked.
 
 ## Implemented and verified component inventory
 

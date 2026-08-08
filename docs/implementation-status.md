@@ -9,9 +9,9 @@
 | Active task | None |
 | Blocking task | `ORD-07`, exact REST-to-SBE open-order reconciliation |
 | Last completed task | `CLIENT-ID-01`, native-long and canonical bidirectional String client-order IDs |
-| Local verification | 2026-08-06: fresh official XML bundle, REST OpenAPI, SDK, binary-reference Markdown, and changelog Markdown remained byte-for-byte pinned; no exact REST/SBE identity bridge was added. Last clean suite: 2026-08-03, 300/300. |
+| Local verification | 2026-08-08: official XML bundle, binary-reference Markdown, and changelog Markdown changed; REST OpenAPI and SDK remained byte-for-byte pinned. The changed XML still supplies no exact REST/SBE identity bridge. Last clean suite: 2026-08-03, 300/300. |
 | Production readiness | **No** — component assembly, downstream consumer integration, joint builds, and private live validation remain |
-| Exact next action | Wait for a newer Deribit specification or formal identity-mapping clarification, then repeat `SPEC-01`; do not start `ORD-07` or downstream assembly without the exact bridge. |
+| Exact next action | Wait for a corrected or clarified REST/SBE identity bridge, then revalidate the current v12/1.4 order-entry and corrected market-data XML before selecting a test-first task; do not start `ORD-07` or downstream assembly without the exact bridge. |
 
 There is no active implementation item: a green suite does not bypass the identity gate.
 The separately requested, pause-safe `CLIENT-ID-01` API/correlation maintenance goal is
@@ -144,6 +144,39 @@ The order-entry XML remains schema 2101/v11/1.3 with signed-64-bit `OrderId` and
 and `commission`. Its required `order_id` remains a UUID-style string; neither it nor the
 SDK supplies an exact bridge to either SBE identifier. `SPEC-01` therefore remains waiting
 and `ORD-07` remains blocked.
+
+### 2026-08-08 restart audit
+
+Three official artifacts changed, while the REST identity source did not:
+
+- XML bundle SHA-256 is now
+  `4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42`;
+- order-entry XML is now schema 2101/v12/semantic version 1.4, SHA-256
+  `ABB62943716230852B0684A6D3CE9BA1C42E235EFD424E7DED5C3864A0EC19BA`;
+- market-data XML remains schema 2102/v1/semantic version 1.0 but is corrected,
+  SHA-256 `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`;
+- binary-reference Markdown is now SHA-256
+  `25B0A38C344DB86F215DB766A502250E3BE5EAA13BE81E5D661F7CFC447FD43C`; and
+- Starbase changelog Markdown is now SHA-256
+  `42EECE609A40388B030F2144985764BE1CB89EBE4B82417BC3EC06DC5B09CC83`.
+
+The current OpenAPI and SDK remain byte-for-byte unchanged at
+`F2F2DD44CC4ED63ACC8C4E30545B2829514BF20566EE0C6AEFBA16D0F6F267DB` and
+`57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`, respectively.
+The REST `Order` model therefore still has only UUID-style `order_id` and nullable `label`,
+not an exact numeric SBE identity or documented reversible mapping.
+
+The new order-entry XML adds only schema negotiation: `Logon` (template 1) gains a
+`uint16 schemaVersion` field (ID 67, since version 12), and `LogonConf` (template 2) gains
+the accepted `uint16 schemaVersion` (ID 6). It does not add an order-identity bridge. The
+7 August market-data correction adds `IndexInfo` (template 12), removes `indexPrice` from
+`InstrumentInfo` and moves `markPrice` to field ID 32, and adds optional `openInterest` to
+`InstrumentRef` (field ID 56). The market-data protocol version remains 1 despite those
+wire-layout changes.
+
+The changed XML must not be adopted into the hardcoded codecs during this paused audit:
+the unchanged REST identity evidence leaves `SPEC-01` waiting and `ORD-07` blocked. No
+production source, checked-in schema, or test was changed.
 
 ## Implemented and verified component inventory
 

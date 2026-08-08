@@ -1,5 +1,24 @@
 # Starbase schema manifest
 
+## Current upstream review (not adopted)
+
+Reviewed 2026-08-08: `https://statics.deribit.com/files/deribit-sbe-xmls.zip`, SHA-256
+`4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42`.
+
+The bundle now contains order-entry schema 2101/version 12/semantic version 1.4, XML
+SHA-256 `ABB62943716230852B0684A6D3CE9BA1C42E235EFD424E7DED5C3864A0EC19BA`, and
+market-data schema 2102/version 1/semantic version 1.0, XML SHA-256
+`6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`. The order-entry
+delta is schema negotiation in `Logon`/`LogonConf`; the market-data correction adds
+`IndexInfo` (12), changes `InstrumentInfo` (14), and adds `openInterest` to
+`InstrumentRef` (15). It introduces no REST/SBE identity bridge, so it is not adopted
+while `SPEC-01`/`ORD-07` remain paused.
+
+## Implemented reference pin
+
+The checked-in references below remain the hardcoded-codec baseline until a separately
+selected, test-first source-update task is permitted by the identity gate.
+
 Reviewed 2026-08-06: `https://statics.deribit.com/files/deribit-sbe-xmls.zip`, SHA-256
 `D36FEDB7AEB2FC5418FBFCFA9FBA80762E865689198B34A64DAEC8DB6D6FB425`.
 

@@ -13,7 +13,7 @@ public final class SessionRejectEncoder {
       long sequence,
       long lastProcessedSequence,
       long sendTimeNanos) {
-    if (refSequenceNumber < 1 || reason < 1 || reason > 5) {
+    if (refSequenceNumber < 1 || reason < 1 || reason > 6) {
       throw new IllegalArgumentException("invalid session reject reference/reason");
     }
     if (details == null || details.length > 255) {

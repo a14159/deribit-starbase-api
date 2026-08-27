@@ -82,24 +82,31 @@ public final class ReferenceDataDecodersTest {
     assertEquals(7, IndexDefinitionDecoder.nameLength(index, 0));
     assertEquals('d', IndexDefinitionDecoder.nameByte(index, 0, 6));
 
-    ByteBuffer info = message(16 + 40, 14);
-    for (int field = 0; field < 5; field++) {
+    ByteBuffer indexInfo = message(16 + 16, 12);
+    indexInfo.putLong(16, 45);
+    indexInfo.putLong(24, 46);
+    IndexInfoDecoder.validate(indexInfo, 0);
+    assertEquals(45, IndexInfoDecoder.indexId(indexInfo, 0));
+    assertEquals(46, IndexInfoDecoder.indexPriceMantissa(indexInfo, 0));
+
+    ByteBuffer info = message(16 + 32, 14);
+    for (int field = 0; field < 4; field++) {
       info.putLong(16 + field * 8, field + 1);
     }
     InstrumentInfoDecoder.validate(info, 0);
     assertEquals(1, InstrumentInfoDecoder.instrumentId(info, 0));
     assertEquals(2, InstrumentInfoDecoder.minSellPriceMantissa(info, 0));
     assertEquals(3, InstrumentInfoDecoder.maxBuyPriceMantissa(info, 0));
-    assertEquals(4, InstrumentInfoDecoder.indexPriceMantissa(info, 0));
-    assertEquals(5, InstrumentInfoDecoder.markPriceMantissa(info, 0));
+    assertEquals(4, InstrumentInfoDecoder.markPriceMantissa(info, 0));
 
-    ByteBuffer reference = message(16 + 48, 15);
+    ByteBuffer reference = message(16 + 56, 15);
     reference.putLong(16, 6);
     reference.putDouble(24, 0.01);
     reference.putDouble(32, Double.NaN);
     reference.putLong(40, 7);
     reference.putLong(48, Long.MIN_VALUE);
     reference.putLong(56, 9);
+    reference.putDouble(64, 10.5);
     InstrumentRefDecoder.validate(reference, 0);
     assertEquals(6, InstrumentRefDecoder.instrumentId(reference, 0));
     assertEquals(0.01, InstrumentRefDecoder.currentFunding(reference, 0));
@@ -109,6 +116,10 @@ public final class ReferenceDataDecodersTest {
     assertTrue(InstrumentRefDecoder.isDeliveryPriceNull(reference, 0));
     assertEquals(9, InstrumentRefDecoder.settlementPriceMantissa(reference, 0));
     assertEquals(false, InstrumentRefDecoder.isSettlementPriceNull(reference, 0));
+    assertEquals(10.5, InstrumentRefDecoder.openInterest(reference, 0));
+    assertEquals(false, InstrumentRefDecoder.isOpenInterestNull(reference, 0));
+    reference.putDouble(64, Double.NaN);
+    assertTrue(InstrumentRefDecoder.isOpenInterestNull(reference, 0));
 
     ByteBuffer status = message(16 + 9, 16);
     status.putLong(16, 10);
@@ -121,10 +132,13 @@ public final class ReferenceDataDecodersTest {
   public void testEachDecoderRejectsWrongTemplateLengthAndCorruptGroups() {
     assertThrows(
         StarbaseProtocolException.class,
-        () -> InstrumentInfoDecoder.validate(message(16 + 39, 14), 0));
+        () -> IndexInfoDecoder.validate(message(16 + 15, 12), 0));
     assertThrows(
         StarbaseProtocolException.class,
-        () -> InstrumentRefDecoder.validate(message(16 + 48, 14), 0));
+        () -> InstrumentInfoDecoder.validate(message(16 + 40, 14), 0));
+    assertThrows(
+        StarbaseProtocolException.class,
+        () -> InstrumentRefDecoder.validate(message(16 + 48, 15), 0));
     assertThrows(
         StarbaseProtocolException.class,
         () -> InstrumentStatusUpdateDecoder.validate(message(16 + 8, 16), 0));
@@ -162,7 +176,7 @@ public final class ReferenceDataDecodersTest {
       return;
     }
     bean.setThreadAllocatedMemoryEnabled(true);
-    ByteBuffer info = message(16 + 40, 14);
+    ByteBuffer info = message(16 + 32, 14);
     for (int iteration = 0; iteration < 100_000; iteration++) {
       exercise(info);
     }

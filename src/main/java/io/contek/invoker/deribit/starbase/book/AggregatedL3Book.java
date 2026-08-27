@@ -122,6 +122,11 @@ public final class AggregatedL3Book {
     return orders.size();
   }
 
+  /** Visits every occupied aggregate level without allocating an intermediate snapshot. */
+  public void forEachLevel(PriceLevelConsumer consumer) {
+    levels.forEach(consumer);
+  }
+
   /** Audits every L3 order and aggregate level without creating temporary objects. */
   public void validateInvariants() {
     try {

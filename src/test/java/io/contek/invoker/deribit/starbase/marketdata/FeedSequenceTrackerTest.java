@@ -69,6 +69,20 @@ public final class FeedSequenceTrackerTest {
     assertEquals(8L, tracker.nextExpectedSequence());
   }
 
+  public void testRecoveredGapAdvancesTheAffectedFeedPastItsHeldPacket() {
+    FeedSequenceTracker tracker = new FeedSequenceTracker();
+    tracker.accept(10L, 1);
+    assertEquals(FeedSequenceTracker.GAP, tracker.accept(12L, 2));
+
+    tracker.advanceAfterGap(12L, 2);
+
+    assertEquals(14L, tracker.nextExpectedSequence());
+    assertEquals(FeedSequenceTracker.CONTIGUOUS, tracker.accept(14L, 1));
+    assertThrows(
+        IllegalStateException.class,
+        () -> tracker.advanceAfterGap(20L, 1));
+  }
+
   public void testNormalSequenceTrackingAllocatesNothingAfterWarmup() {
     ThreadMXBean bean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
     long threadId = Thread.currentThread().threadId();

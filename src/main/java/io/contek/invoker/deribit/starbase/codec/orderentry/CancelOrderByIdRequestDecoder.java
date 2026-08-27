@@ -11,8 +11,8 @@ public final class CancelOrderByIdRequestDecoder {
 
   public static void validate(ByteBuffer buffer, int offset) {
     SessionCodecSupport.validateFixed(buffer, offset, TEMPLATE_ID, BODY_LENGTH);
-    if (orderId(buffer, offset) < 0 || instrumentId(buffer, offset) < 0) {
-      throw new StarbaseProtocolException("negative cancel-by-ID identifier");
+    if (orderId(buffer, offset) == Long.MIN_VALUE || instrumentId(buffer, offset) < 0) {
+      throw new StarbaseProtocolException("null orderId or negative instrumentId");
     }
   }
 

@@ -32,8 +32,36 @@ public final class OrderFillProcessor {
     return process(sessionId, matchId, orderId, fillQuantity);
   }
 
+  /** Records a fill already reflected in an authoritative response remaining quantity. */
+  public synchronized boolean onAuthoritativeFill(
+      long sessionId,
+      long matchId,
+      long orderId,
+      long fillQuantity,
+      long remainingQuantity) {
+    if (find(matchId) >= 0) {
+      return false;
+    }
+    if (fillQuantity < 1 || orders.remainingQuantity(orderId) != remainingQuantity) {
+      return false;
+    }
+    int slot = emptySlot();
+    if (slot < 0) {
+      throw new IllegalStateException("fill match-ID capacity exhausted");
+    }
+    matchIds[slot] = matchId;
+    occupied[slot] = 1;
+    size++;
+    listener.onFill(sessionId, matchId, orderId, fillQuantity, remainingQuantity);
+    return true;
+  }
+
   public synchronized int size() {
     return size;
+  }
+
+  public synchronized boolean containsMatchId(long matchId) {
+    return find(matchId) >= 0;
   }
 
   /** Clears prior-session match IDs only after local orders have been authoritatively reconciled. */

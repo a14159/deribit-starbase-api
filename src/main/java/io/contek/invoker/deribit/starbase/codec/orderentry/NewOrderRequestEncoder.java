@@ -4,7 +4,7 @@ import io.contek.invoker.deribit.starbase.codec.common.Decimal72Codec;
 import io.contek.invoker.deribit.starbase.codec.common.Price9Codec;
 import java.nio.ByteBuffer;
 
-/** Hardcoded encoder for order-entry schema-v11 NewOrderRequest (template 100). */
+/** Hardcoded encoder for order-entry schema-v15 NewOrderRequest (template 100). */
 public final class NewOrderRequestEncoder {
 
   public static final int TEMPLATE_ID = 100;

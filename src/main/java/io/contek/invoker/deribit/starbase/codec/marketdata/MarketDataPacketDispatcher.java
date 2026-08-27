@@ -59,6 +59,7 @@ public final class MarketDataPacketDispatcher {
           InstrumentDefinitionDecoder.validate(buffer, messageOffset);
       case IndexDefinitionDecoder.TEMPLATE_ID ->
           IndexDefinitionDecoder.validate(buffer, messageOffset);
+      case IndexInfoDecoder.TEMPLATE_ID -> IndexInfoDecoder.validate(buffer, messageOffset);
       case InstrumentInfoDecoder.TEMPLATE_ID ->
           InstrumentInfoDecoder.validate(buffer, messageOffset);
       case InstrumentRefDecoder.TEMPLATE_ID ->

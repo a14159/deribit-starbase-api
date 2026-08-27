@@ -14,6 +14,7 @@ public record StarbaseInstrument(
     String quoteCurrency,
     String settlementCurrency,
     BigDecimal tickSize,
+    BigDecimal quantityTickSize,
     BigDecimal strike,
     String optionType,
     boolean active,

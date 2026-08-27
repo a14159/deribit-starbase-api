@@ -60,6 +60,22 @@ public final class CancelOrderCodecsTest {
     assertEquals(203L, CancelOrderByIdRequestDecoder.instrumentId(frame, 0));
   }
 
+  public void testExchangeOrderIdUsesTheFullSignedInt64DomainExceptNull() {
+    ByteBuffer frame = ByteBuffer.allocateDirect(96).order(ByteOrder.LITTLE_ENDIAN);
+    long signedOrderId = Long.MIN_VALUE + 1;
+
+    CancelOrderByIdRequestEncoder.encode(frame, 0, signedOrderId, 2, 3, 1, 0, 1);
+    CancelOrderByIdRequestDecoder.validate(frame, 0);
+    assertEquals(signedOrderId, CancelOrderByIdRequestDecoder.orderId(frame, 0));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> CancelOrderByIdRequestEncoder.encode(frame, 0, Long.MIN_VALUE, 2, 3, 1, 0, 1));
+    frame.putLong(32, Long.MIN_VALUE);
+    assertThrows(
+        StarbaseProtocolException.class,
+        () -> CancelOrderByIdRequestDecoder.validate(frame, 0));
+  }
+
   public void testMassCancelRequestPinsNullableScopeProductSideAndPadding() {
     ByteBuffer frame = ByteBuffer.allocateDirect(96).order(ByteOrder.LITTLE_ENDIAN);
 
@@ -158,7 +174,7 @@ public final class CancelOrderCodecsTest {
         IllegalArgumentException.class,
         () ->
             CancelOrderByIdRequestEncoder.encode(
-                frame, 0, -1L, 1L, 2L, 1L, 0L, 1L));
+                frame, 0, Long.MIN_VALUE, 1L, 2L, 1L, 0L, 1L));
 
     ByteBuffer response = fixedFrame(240, 68, 4);
     response.putInt(32 + 32, -1);

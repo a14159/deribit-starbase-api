@@ -4,7 +4,7 @@ import io.contek.invoker.deribit.starbase.codec.common.TcpHeaderCodec;
 import io.contek.invoker.deribit.starbase.common.StarbaseProtocolException;
 import java.nio.ByteBuffer;
 
-/** Hardcoded decoder for order-entry schema-v11 NewOrderReject (template 202). */
+/** Hardcoded decoder for order-entry schema-v15 NewOrderReject (template 202). */
 public final class NewOrderRejectDecoder {
 
   public static final int TEMPLATE_ID = 202;
@@ -13,7 +13,7 @@ public final class NewOrderRejectDecoder {
   public static void validate(ByteBuffer buffer, int offset) {
     SessionCodecSupport.validateVariable(buffer, offset, TEMPLATE_ID, BLOCK_LENGTH);
     int reason = reason(buffer, offset);
-    if (reason < 0 || reason > 29) {
+    if (reason < 0 || reason > 30) {
       throw new StarbaseProtocolException("invalid NewOrderReject reason");
     }
   }

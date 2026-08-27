@@ -7,6 +7,7 @@ import io.contek.invoker.deribit.starbase.codec.orderentry.SessionRejectDecoder;
 import io.contek.invoker.deribit.starbase.common.NanoClock;
 import io.contek.invoker.deribit.starbase.common.StarbaseCredentials;
 import io.contek.invoker.deribit.starbase.common.StarbaseProtocolException;
+import io.contek.invoker.deribit.starbase.protocol.ProtocolSchemas;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Arrays;
@@ -131,6 +132,11 @@ public final class AuthenticationStateMachine
     }
     if (templateId == LogonConfirmationCodec.TEMPLATE_ID) {
       LogonConfirmationCodec.validate(buffer, offset);
+      if (LogonConfirmationCodec.schemaVersion(buffer, offset)
+          != ProtocolSchemas.ORDER_ENTRY.version()) {
+        fail(FAILURE_PROTOCOL);
+        throw new StarbaseProtocolException("gateway accepted a different schema version");
+      }
       heartbeatIntervalSeconds =
           LogonConfirmationCodec.heartbeatIntervalSeconds(buffer, offset);
       state = AUTHENTICATED;

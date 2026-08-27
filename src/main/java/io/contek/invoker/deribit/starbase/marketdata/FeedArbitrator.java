@@ -51,6 +51,10 @@ public final class FeedArbitrator {
     return nextExpectedSequence;
   }
 
+  public boolean isInitialized() {
+    return initialized;
+  }
+
   public long gapSize() {
     return gapSize;
   }

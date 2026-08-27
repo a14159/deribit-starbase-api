@@ -2,6 +2,7 @@ package io.contek.invoker.deribit.starbase.orderentry.command;
 
 import io.contek.invoker.deribit.starbase.codec.orderentry.AmendOrderRequestEncoder;
 import io.contek.invoker.deribit.starbase.codec.orderentry.CancelOrderRequestEncoder;
+import io.contek.invoker.deribit.starbase.codec.orderentry.CancelOrderByIdRequestEncoder;
 import io.contek.invoker.deribit.starbase.codec.orderentry.MassCancelRequestEncoder;
 import io.contek.invoker.deribit.starbase.codec.orderentry.NewOrderRequestEncoder;
 import io.contek.invoker.deribit.starbase.common.NanoClock;
@@ -26,6 +27,7 @@ public final class OrderCommandFacade implements TcpFrameEncoder {
   private static final int ENCODE_AMEND = 3;
   private static final int ENCODE_CANCEL = 4;
   private static final int ENCODE_MASS_CANCEL = 5;
+  private static final int ENCODE_CANCEL_BY_ID = 6;
 
   private static final ClientOrderIdMap CLIENT_ORDER_IDS = new ClientOrderIdMap();
 
@@ -50,6 +52,7 @@ public final class OrderCommandFacade implements TcpFrameEncoder {
   private int flags;
   private int selfTradingMode;
   private long currencyPairId;
+  private long orderId;
   private int productType;
   private int encodeKind;
   private long sequence;
@@ -227,6 +230,17 @@ public final class OrderCommandFacade implements TcpFrameEncoder {
     return send(COMMAND_CANCEL, clientOrderId);
   }
 
+  public synchronized long cancelByOrderId(
+      long orderId, long correlationClientOrderId, long instrumentId) {
+    requireWritable();
+    CancelOrderByIdRequestEncoder.validateArguments(orderId, instrumentId);
+    CLIENT_ORDER_IDS.map(correlationClientOrderId);
+    this.orderId = orderId;
+    this.instrumentId = instrumentId;
+    encodeKind = ENCODE_CANCEL_BY_ID;
+    return send(COMMAND_CANCEL, correlationClientOrderId);
+  }
+
   public synchronized long massCancel(
       long currencyPairId, long instrumentId, int productType, int side) {
     requireWritable();
@@ -267,6 +281,10 @@ public final class OrderCommandFacade implements TcpFrameEncoder {
           MassCancelRequestEncoder.encode(
               buffer, offset, correlationId, currencyPairId, instrumentId, productType, side,
               sequence, lastProcessedSequence, sendTimeNanos);
+      case ENCODE_CANCEL_BY_ID ->
+          CancelOrderByIdRequestEncoder.encode(
+              buffer, offset, orderId, correlationId, instrumentId, sequence,
+              lastProcessedSequence, sendTimeNanos);
       default -> throw new IllegalStateException("no order command selected");
     };
   }

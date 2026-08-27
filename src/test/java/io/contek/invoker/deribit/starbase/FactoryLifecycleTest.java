@@ -18,6 +18,7 @@ import io.contek.invoker.deribit.starbase.orderentry.StarbaseOrderEntryContext;
 import io.contek.invoker.deribit.starbase.rest.StarbaseRestApi;
 import io.contek.invoker.deribit.starbase.rest.StarbaseRestContext;
 import io.contek.invoker.deribit.starbase.rest.StarbaseRestCredentials;
+import io.contek.invoker.deribit.starbase.rest.OpenOrderRecoveryCache;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Duration;
@@ -81,6 +82,25 @@ public final class FactoryLifecycleTest {
     }
   }
 
+  public void testFactoryConstructsPairedOrderEntryWithSeparateGatewayCredentialsAndRecovery() {
+    MutableClock clock = new MutableClock();
+    StarbaseOrderEntryContext sideA = orderContext(clock, GatewaySide.A);
+    StarbaseOrderEntryContext sideB = orderContext(clock, GatewaySide.B);
+    OpenOrderRecoveryCache recovery =
+        new OpenOrderRecoveryCache(clock, Duration.ofMinutes(1), java.util.List::of);
+    try (StarbaseCredentials credentialsA =
+            new StarbaseCredentials("client-a".toCharArray(), "secret-a".toCharArray());
+        StarbaseCredentials credentialsB =
+            new StarbaseCredentials("client-b".toCharArray(), "secret-b".toCharArray());
+        StarbaseOrderEntryApi api =
+            new StarbaseApiFactory()
+                .orderEntry(sideA, credentialsA, sideB, credentialsB, recovery)) {
+      assertSame(sideA, api.context());
+      assertSame(sideB, api.secondaryContext());
+      assertFalse(api.isReady());
+    }
+  }
+
   private static StarbaseMarketDataContext marketContext() {
     return new StarbaseMarketDataContext(
         ProductGroup.BTC,
@@ -97,16 +117,20 @@ public final class FactoryLifecycleTest {
   }
 
   private static StarbaseOrderEntryContext orderContext() {
+    return orderContext(CLOCK, GatewaySide.A);
+  }
+
+  private static StarbaseOrderEntryContext orderContext(NanoClock clock, GatewaySide side) {
     return new StarbaseOrderEntryContext(
-        new InetSocketAddress("127.0.0.1", 4210),
+        new InetSocketAddress("127.0.0.1", side == GatewaySide.A ? 4210 : 4211),
         ProductGroup.BTC,
-        GatewaySide.A,
+        side,
         Duration.ofSeconds(1),
         Duration.ofSeconds(5),
         4096,
         4096,
         IoPolicy.BLOCKING,
-        CLOCK);
+        clock);
   }
 
   private static StarbaseRestContext restContext() {
@@ -115,5 +139,14 @@ public final class FactoryLifecycleTest {
         Duration.ofSeconds(1),
         Duration.ofSeconds(2),
         CLOCK);
+  }
+
+  private static final class MutableClock implements NanoClock {
+    private long now;
+
+    @Override
+    public long nanoTime() {
+      return now;
+    }
   }
 }

@@ -16,17 +16,18 @@ public final class ProtocolSchemasTest {
     assertSchema(
         ProtocolSchemas.ORDER_ENTRY,
         2101,
-        11,
-        "1.3",
-        "70B1B297A4D8472CA31C76E97613909B136C0CF4782CB858CAC306696C0C5A89");
+        15,
+        "1.5",
+        "4BA2A80B473AC233B6DDB971158E7A65353B1E287C7B304F14062AC2E5E9106C");
     assertSchema(
         ProtocolSchemas.MARKET_DATA,
         2102,
         1,
         "1.0",
-        "68F52A5FEF08FA2ECD5F217DEDDA94130AB3B6A24F39090CF088F19D072A73E2");
-    assertTrue(ProtocolSchemas.SOURCE_BUNDLE_URL.startsWith("https://statics.deribit.com/"));
-    assertEquals("2026-07-30", ProtocolSchemas.REVIEW_DATE);
+        "6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE");
+    assertTrue(ProtocolSchemas.ORDER_ENTRY_SOURCE_URL.endsWith("deribit-sbe-order-api.xml"));
+    assertTrue(ProtocolSchemas.MARKET_DATA_SOURCE_URL.endsWith("deribit-sbe-market-data-api.xml"));
+    assertEquals("2026-08-27", ProtocolSchemas.REVIEW_DATE);
   }
 
   private static void assertSchema(

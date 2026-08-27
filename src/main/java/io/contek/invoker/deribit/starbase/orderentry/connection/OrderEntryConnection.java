@@ -69,6 +69,11 @@ public final class OrderEntryConnection implements AutoCloseable {
     return writer.flush();
   }
 
+  /** Returns the connection-owned serialized writer for composed session components. */
+  public TcpFrameWriter writer() {
+    return writer;
+  }
+
   public boolean isRunning() {
     return state == RUNNING;
   }

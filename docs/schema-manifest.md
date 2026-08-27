@@ -1,8 +1,8 @@
 # Starbase schema manifest
 
-## Current upstream review (not adopted)
+## Current upstream review and adoption
 
-Reviewed 2026-08-27. The legacy bundle at
+Reviewed 2026-08-27 and revalidated unchanged on 2026-08-28. The legacy bundle at
 `https://statics.deribit.com/files/deribit-sbe-xmls.zip` remains SHA-256
 `4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42` and still carries
 the older order-entry v12 XML. The current binary reference instead links the direct
@@ -20,22 +20,21 @@ schema 2102/version 1/semantic version 1.0, SHA-256
 
 Formal Deribit clarification dated 2026-08-27 establishes that the Starbase REST snapshot's
 string `order_id` is the base-10 serialization of this same SBE `OrderId`; the public
-OpenAPI's UUID description is a documentation error. `SPEC-01` is therefore resolved. The
-current XMLs and associated REST/source deltas are not yet adopted: `SPEC-02` is the first
-task for the separate restart session, followed by `ORD-07`.
+OpenAPI's UUID description is a documentation error. `SPEC-01` is therefore resolved.
+`SPEC-02` adopted the current XMLs and unconflicted REST model deltas test-first on the same
+date. `ORD-07`, `ASM-MD`, and `ASM-OE` are complete locally; consumer and private live
+validation remain.
 
 ## Implemented reference pin
 
-The checked-in references below remain the hardcoded-codec baseline until `SPEC-02` adopts
-the current sources test-first in the separate restart session.
-
-Reviewed 2026-08-06: `https://statics.deribit.com/files/deribit-sbe-xmls.zip`, SHA-256
-`D36FEDB7AEB2FC5418FBFCFA9FBA80762E865689198B34A64DAEC8DB6D6FB425`.
+The checked-in references below are the production hardcoded-codec baseline. Direct XML
+URLs and the production/testnet/legacy source hashes are recorded in
+[protocol-source-review.md](protocol-source-review.md).
 
 | Schema | ID | Version | Semantic version | Checked-in reference | SHA-256 |
 | --- | ---: | ---: | ---: | --- | --- |
-| Order entry | 2101 | 11 | 1.3 | `src/main/resources/schema/deribit-sbe-order-api.xml` | `70B1B297A4D8472CA31C76E97613909B136C0CF4782CB858CAC306696C0C5A89` |
-| Market data | 2102 | 1 | 1.0 | `src/main/resources/schema/deribit-sbe-market-data-api.xml` | `68F52A5FEF08FA2ECD5F217DEDDA94130AB3B6A24F39090CF088F19D072A73E2` |
+| Order entry | 2101 | 15 | 1.5 | `src/main/resources/schema/deribit-sbe-order-api.xml` | `4BA2A80B473AC233B6DDB971158E7A65353B1E287C7B304F14062AC2E5E9106C` |
+| Market data | 2102 | 1 | 1.0 | `src/main/resources/schema/deribit-sbe-market-data-api.xml` | `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE` |
 
 XML files are reference-only; production codecs are hardcoded/bounds-checked, never
 generated or runtime-parsed.
@@ -46,6 +45,7 @@ generated or runtime-parsed.
 | --- | ---: | --- | --- | --- |
 | Market data | 10 | InstrumentDefinition | `InstrumentDefinitionDecoder` | `ReferenceDataDecodersTest` |
 | Market data | 11 | IndexDefinition | `IndexDefinitionDecoder` | `ReferenceDataDecodersTest` |
+| Market data | 12 | IndexInfo | `IndexInfoDecoder` | `ReferenceDataDecodersTest` |
 | Market data | 14 | InstrumentInfo | `InstrumentInfoDecoder` | `ReferenceDataDecodersTest` |
 | Market data | 15 | InstrumentRef | `InstrumentRefDecoder` | `ReferenceDataDecodersTest` |
 | Market data | 16 | InstrumentStatusUpdate | `InstrumentStatusUpdateDecoder` | `ReferenceDataDecodersTest` |
@@ -68,6 +68,12 @@ Common framing/dispatch tests: `TcpHeaderCodecTest`, `UdpPacketHeaderCodecTest`,
 (`BlockTrade`) has no codec and is rejected fail-closed by `MarketDataPacketDispatcher`.
 
 ### Order-entry templates
+
+All listed layouts are unchanged from the originally implemented subset except `Logon`
+(68-byte body) and `LogonConfirmation` (6-byte body). The dispatcher accepts the audited
+compatible header range v11-v15 and rejects later versions. Encoders stamp production v15,
+and the assembled lifecycle requires its `LogonConf` to echo v15. Testnet v14 remains an
+audited upstream input, not a silently accepted production-session downgrade.
 
 | Template ID | Message | Hardcoded codec(s) | Golden/bounds test |
 | ---: | --- | --- | --- |
@@ -112,3 +118,6 @@ checked in as `src/test/resources/pcap/starbase-market-data.pcap`; 5,344,700 byt
 instrument/snapshot facts against `starbase-market-data.trace`. The capture acts at
 version 0 where the pin is 1; production accepts 0–1 and rejects later versions.
 Zero-filled eight-byte padding included in advertised lengths is validated byte-for-byte.
+The unchanged capture contains no template 12, 14, or 15 messages, so it does not validate
+the corrected MD-v1 reference-data layouts; current golden/boundary coverage is in
+`ReferenceDataDecodersTest`.

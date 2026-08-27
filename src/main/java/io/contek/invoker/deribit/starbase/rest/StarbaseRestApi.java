@@ -83,7 +83,14 @@ public final class StarbaseRestApi extends AbstractStarbaseApi {
       Object parsed = JsonParser.parse(response.resultJson());
       if (!(parsed instanceof List<?> values)) throw new IllegalArgumentException("result is not an array");
       ArrayList<StarbaseOpenOrder> orders = new ArrayList<>(values.size());
-      for (Object value : values) orders.add(openOrder(value));
+      HashSet<Long> orderIds = new HashSet<>();
+      for (Object value : values) {
+        StarbaseOpenOrder order = openOrder(value);
+        if (!orderIds.add(order.orderId())) {
+          throw new IllegalArgumentException("duplicate or ambiguous order_id");
+        }
+        orders.add(order);
+      }
       return List.copyOf(orders);
     } catch (IllegalArgumentException invalid) {
       throw new StarbaseRestException(
@@ -133,7 +140,8 @@ public final class StarbaseRestApi extends AbstractStarbaseApi {
         StarbaseInstrumentKind.parse(requiredString(map, "kind")), nullableLong(map, "index_id"),
         productGroup(nullableString(map, "product_group")), nullableString(map, "base_currency"),
         nullableString(map, "quote_currency"), nullableString(map, "settlement_currency"),
-        nullableDecimal(map, "tick_size"), nullableDecimal(map, "strike"),
+        nullableDecimal(map, "tick_size"), nullableDecimal(map, "qty_tick_size"),
+        nullableDecimal(map, "strike"),
         nullableString(map, "option_type"), requiredBoolean(map, "is_active"),
         nullableLong(map, "expiration_timestamp"), nullableLong(map, "creation_timestamp"),
         nullableDecimal(map, "min_trade_amount"), nullableDecimal(map, "contract_size"),
@@ -149,13 +157,14 @@ public final class StarbaseRestApi extends AbstractStarbaseApi {
       throw new IllegalArgumentException("invalid order amount/fill relationship");
     }
     return new StarbaseOpenOrder(
-        requiredString(map, "order_id"), requiredString(map, "instrument_name"),
+        exactOrderId(map), requiredString(map, "instrument_name"),
         StarbaseOrderSide.parse(requiredString(map, "side")), requiredDecimal(map, "price"),
         amount, filledAmount, nullableDecimal(map, "average_price"),
         StarbaseRestOrderState.parse(requiredString(map, "order_state")),
         StarbaseRestOrderType.parse(requiredString(map, "order_type")),
         nullableTimeInForce(map), nullableBoolean(map, "post_only"),
-        nullableBoolean(map, "reduce_only"), nullableLong(map, "creation_timestamp"),
+        nullableBoolean(map, "reject_post_only"), nullableBoolean(map, "reduce_only"),
+        nullableLong(map, "creation_timestamp"),
         nullableLong(map, "last_update_timestamp"), nullableString(map, "label"),
         nullableBoolean(map, "api"), nullableDecimal(map, "max_show"),
         nullableDecimal(map, "profit_loss"), nullableDecimal(map, "commission"));
@@ -224,6 +233,14 @@ public final class StarbaseRestApi extends AbstractStarbaseApi {
     String value = nullableString(map, name);
     if (value == null || value.isBlank()) throw new IllegalArgumentException(name + " is required");
     return value;
+  }
+
+  private static long exactOrderId(Map<?, ?> map) {
+    long orderId = Long.parseLong(requiredString(map, "order_id"));
+    if (orderId == Long.MIN_VALUE) {
+      throw new IllegalArgumentException("order_id is the SBE null sentinel");
+    }
+    return orderId;
   }
 
   private static String nullableString(Map<?, ?> map, String name) {

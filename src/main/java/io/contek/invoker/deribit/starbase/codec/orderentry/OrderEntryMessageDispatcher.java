@@ -4,7 +4,7 @@ import io.contek.invoker.deribit.starbase.codec.common.OrderEntryTemplateDispatc
 import io.contek.invoker.deribit.starbase.common.StarbaseProtocolException;
 import java.nio.ByteBuffer;
 
-/** Validates and routes the hardcoded order-entry schema-v11 message subset. */
+/** Validates and routes the hardcoded order-entry schema-v15 message subset. */
 public final class OrderEntryMessageDispatcher {
 
   public static void dispatch(ByteBuffer buffer, int offset, OrderEntryMessageHandler handler) {

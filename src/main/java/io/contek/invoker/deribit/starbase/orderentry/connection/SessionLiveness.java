@@ -81,6 +81,39 @@ public final class SessionLiveness implements TcpFrameEncoder {
     return ACTION_NONE;
   }
 
+  /** Claims a sequence only when a heartbeat is actually due and the shared writer is free. */
+  public synchronized int poll(SessionSequenceState sequences) {
+    Objects.requireNonNull(sequences, "sequences");
+    requireActive();
+    long now = clock.nanoTime();
+    if (elapsed(now, lastPeerActivityNanos) >= inactivityTimeoutNanos) {
+      failed = true;
+      pendingHeartbeat = false;
+      return ACTION_DISCONNECT;
+    }
+    if (pendingHeartbeat) {
+      if (writer.flush()) {
+        pendingHeartbeat = false;
+        lastSendNanos = now;
+        return ACTION_HEARTBEAT;
+      }
+      return ACTION_NONE;
+    }
+    if (elapsed(now, lastSendNanos) < heartbeatIntervalNanos
+        || writer.pendingBytes() != 0) {
+      return ACTION_NONE;
+    }
+    prepareHeartbeat(
+        0, sequences.claimOutboundSequence(), sequences.lastProcessedInbound());
+    boolean complete = writer.write(this);
+    if (complete) {
+      lastSendNanos = now;
+      return ACTION_HEARTBEAT;
+    }
+    pendingHeartbeat = true;
+    return ACTION_NONE;
+  }
+
   /** Records any completely validated inbound session message. */
   public synchronized void onPeerActivity() {
     requireActive();
@@ -105,6 +138,21 @@ public final class SessionLiveness implements TcpFrameEncoder {
       pendingHeartbeat = true;
     }
     return complete;
+  }
+
+  /** Responds through the shared session sequence domain without colliding with a pending frame. */
+  public synchronized boolean onTestRequest(
+      ByteBuffer buffer, int offset, SessionSequenceState sequences) {
+    Objects.requireNonNull(sequences, "sequences");
+    requireActive();
+    if (writer.pendingBytes() != 0 || pendingHeartbeat) {
+      throw new StarbaseProtocolException("cannot answer TestRequest while a frame is pending");
+    }
+    return onTestRequest(
+        buffer,
+        offset,
+        sequences.claimOutboundSequence(),
+        sequences.lastProcessedInbound());
   }
 
   @Override

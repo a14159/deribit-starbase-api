@@ -33,7 +33,7 @@ public final class TemplateDispatchTest {
   }
 
   public void testEveryPinnedMarketDataTemplateIsKnownExceptSchemaGeneratorDummy() {
-    int[] knownIds = {10, 11, 14, 15, 16, 20, 21, 22, 23, 24, 25, 30, 31, 33, 100, 101, 119, 200, 202};
+    int[] knownIds = {10, 11, 12, 14, 15, 16, 20, 21, 22, 23, 24, 25, 30, 31, 33, 100, 101, 119, 200, 202};
     for (int templateId : knownIds) {
       assertEquals(templateId, MarketDataTemplateDispatch.requireKnown(templateId));
     }
@@ -46,14 +46,18 @@ public final class TemplateDispatchTest {
 
   public void testCompleteFramesRequirePinnedVersionKnownTemplateAndValidBounds() {
     ByteBuffer order = ByteBuffer.allocate(40).order(ByteOrder.LITTLE_ENDIAN);
-    TcpHeaderCodec.encode(order, 0, 0, 32, 100, 11, 1, 0, 2);
+    TcpHeaderCodec.encode(order, 0, 0, 32, 100, 15, 1, 0, 2);
     assertEquals(100, OrderEntryTemplateDispatch.validateFrame(order, 0));
 
     order.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 10);
     assertThrows(
         StarbaseProtocolException.class,
         () -> OrderEntryTemplateDispatch.validateFrame(order, 0));
-    order.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 11);
+    order.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 16);
+    assertThrows(
+        StarbaseProtocolException.class,
+        () -> OrderEntryTemplateDispatch.validateFrame(order, 0));
+    order.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 15);
     order.putShort(TcpHeaderCodec.MESSAGE_TYPE_ID_OFFSET, (short) 9999);
     assertThrows(
         StarbaseProtocolException.class,
@@ -93,7 +97,7 @@ public final class TemplateDispatchTest {
     }
     bean.setThreadAllocatedMemoryEnabled(true);
     ByteBuffer order = ByteBuffer.allocateDirect(32).order(ByteOrder.LITTLE_ENDIAN);
-    TcpHeaderCodec.encode(order, 0, 0, 32, 100, 11, 1, 0, 2);
+    TcpHeaderCodec.encode(order, 0, 0, 32, 100, 15, 1, 0, 2);
     ByteBuffer market = marketMessage(20, 1, 16);
     for (int iteration = 0; iteration < 100_000; iteration++) {
       exercise(order, market);

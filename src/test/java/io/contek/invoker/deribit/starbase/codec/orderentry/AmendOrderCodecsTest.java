@@ -123,6 +123,17 @@ public final class AmendOrderCodecsTest {
     assertEquals('a', AmendOrderRejectDecoder.detailsByte(frame, 0, 1));
   }
 
+  public void testProductionV15MmpFreezeRejectReasonIsAccepted() {
+    ByteBuffer reject = ByteBuffer.allocateDirect(96).order(ByteOrder.LITTLE_ENDIAN);
+    TcpHeaderCodec.encode(reject, 0, 0, 82, 212, 15, 1L, 0L, 1L);
+    reject.put(32 + 48, (byte) 30);
+    reject.put(32 + 49, (byte) 0);
+    TcpHeaderCodec.zeroPadding(reject, 0, 82);
+
+    AmendOrderRejectDecoder.validate(reject, 0);
+    assertEquals(30, AmendOrderRejectDecoder.reason(reject, 0));
+  }
+
   public void testInvalidRequestGroupsEnumsAndRejectDetailsFailClosed() {
     ByteBuffer request = ByteBuffer.allocateDirect(128).order(ByteOrder.LITTLE_ENDIAN);
     assertThrows(
@@ -146,7 +157,7 @@ public final class AmendOrderCodecsTest {
 
     ByteBuffer reject = ByteBuffer.allocateDirect(96).order(ByteOrder.LITTLE_ENDIAN);
     TcpHeaderCodec.encode(reject, 0, 0, 82, 212, 11, 1L, 0L, 1L);
-    reject.put(32 + 48, (byte) 30);
+    reject.put(32 + 48, (byte) 31);
     reject.put(32 + 49, (byte) 1);
     reject.put(32 + 50, (byte) 0);
     TcpHeaderCodec.zeroPadding(reject, 0, 82);

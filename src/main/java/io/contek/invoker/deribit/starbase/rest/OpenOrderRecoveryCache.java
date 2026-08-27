@@ -19,6 +19,8 @@ public final class OpenOrderRecoveryCache {
   private long validUntilNanos = Long.MIN_VALUE;
   private long nextRefreshNanos = Long.MIN_VALUE;
   private long failureCount;
+  private long successfulRefreshCount;
+  private long lastSuccessfulRefreshNanos;
 
   public OpenOrderRecoveryCache(
       NanoClock clock, Duration refreshInterval, OpenOrderSnapshotLoader loader) {
@@ -70,6 +72,21 @@ public final class OpenOrderRecoveryCache {
     return failureCount;
   }
 
+  public synchronized long successfulRefreshCount() {
+    return successfulRefreshCount;
+  }
+
+  public synchronized long lastSuccessfulRefreshNanos() {
+    if (snapshot == null) {
+      throw new IllegalStateException("no successful open-order snapshot is available");
+    }
+    return lastSuccessfulRefreshNanos;
+  }
+
+  public synchronized boolean isSnapshotFresh() {
+    return snapshot != null && before(clock.nanoTime(), validUntilNanos);
+  }
+
   private List<StarbaseOpenOrder> load(long now) {
     attempted = true;
     nextRefreshNanos = saturatedAdd(now, intervalNanos);
@@ -77,6 +94,11 @@ public final class OpenOrderRecoveryCache {
       List<StarbaseOpenOrder> loaded = List.copyOf(Objects.requireNonNull(loader.load(), "snapshot"));
       snapshot = loaded;
       lastFailure = null;
+      lastSuccessfulRefreshNanos = now;
+      successfulRefreshCount =
+          successfulRefreshCount == Long.MAX_VALUE
+              ? Long.MAX_VALUE
+              : successfulRefreshCount + 1;
       validUntilNanos = nextRefreshNanos;
       return loaded;
     } catch (RuntimeException failure) {

@@ -89,6 +89,28 @@ public final class SessionLivenessTest {
     assertEquals(2, transport.calls);
   }
 
+  public void testSharedSequenceIsClaimedOnlyWhenHeartbeatCanActuallyStart() {
+    MutableClock clock = new MutableClock();
+    PartialTransport transport = new PartialTransport();
+    TcpFrameWriter writer = new TcpFrameWriter(64, transport);
+    SessionLiveness liveness =
+        new SessionLiveness(
+            writer, clock, Duration.ofNanos(10), Duration.ofNanos(30));
+    SessionSequenceState sequences = new SessionSequenceState(1, 1);
+    liveness.start();
+    assertTrue(
+        !writer.write(
+            (buffer, offset) -> HeartbeatCodec.encode(buffer, offset, 7, 1, 0, 1)));
+
+    clock.now = 10;
+    assertEquals(SessionLiveness.ACTION_NONE, liveness.poll(sequences));
+    assertEquals(1L, sequences.nextOutbound());
+    transport.writable = true;
+    assertTrue(writer.flush());
+    assertEquals(SessionLiveness.ACTION_HEARTBEAT, liveness.poll(sequences));
+    assertEquals(2L, sequences.nextOutbound());
+  }
+
   public void testWarmedPeerActivityAndHeartbeatPollingAllocateNothing() {
     ThreadMXBean bean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
     if (!bean.isThreadAllocatedMemorySupported()) {

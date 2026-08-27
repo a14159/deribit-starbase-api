@@ -15,7 +15,7 @@ public final class SessionRejectDecoder {
       throw new StarbaseProtocolException("invalid Reject refSequenceNumber");
     }
     int reason = reason(buffer, offset);
-    if (reason < 1 || reason > 5) {
+    if (reason < 1 || reason > 6) {
       throw new StarbaseProtocolException("unknown RejectReason: " + reason);
     }
   }

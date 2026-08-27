@@ -2,9 +2,9 @@ package io.contek.invoker.deribit.starbase.rest;
 
 import java.math.BigDecimal;
 
-/** Immutable portfolio-snapshot order retaining the REST identifier and decimal values exactly. */
+/** Immutable portfolio-snapshot order retaining the exact SBE identity and REST decimals. */
 public record StarbaseOpenOrder(
-    String orderId,
+    long orderId,
     String instrumentName,
     StarbaseOrderSide side,
     BigDecimal price,
@@ -15,6 +15,7 @@ public record StarbaseOpenOrder(
     StarbaseRestOrderType type,
     StarbaseTimeInForce timeInForce,
     Boolean postOnly,
+    Boolean rejectPostOnly,
     Boolean reduceOnly,
     Long creationTimestamp,
     Long lastUpdateTimestamp,

@@ -7,10 +7,13 @@ import java.nio.ByteBuffer;
 /** Allocation-free validation and dispatch keys for pinned order-entry schema 2101. */
 public final class OrderEntryTemplateDispatch {
 
+  public static final int MINIMUM_COMPATIBLE_VERSION = 11;
+
   public static int validateFrame(ByteBuffer buffer, int headerOffset) {
     TcpHeaderCodec.validateFrame(buffer, headerOffset);
     int version = TcpHeaderCodec.version(buffer, headerOffset);
-    if (version != ProtocolSchemas.ORDER_ENTRY.version()) {
+    if (version < MINIMUM_COMPATIBLE_VERSION
+        || version > ProtocolSchemas.ORDER_ENTRY.version()) {
       throw new StarbaseProtocolException("unsupported order-entry schema version: " + version);
     }
     return requireKnown(TcpHeaderCodec.messageTypeId(buffer, headerOffset));

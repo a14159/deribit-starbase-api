@@ -53,6 +53,12 @@ public final class OrderSessionRouter {
     return correlationId;
   }
 
+  public synchronized boolean hasReadyEndpoint(ProductGroup productGroup) {
+    Objects.requireNonNull(productGroup, "productGroup");
+    int group = productGroup.ordinal();
+    return ready(sideA[group]) || ready(sideB[group]);
+  }
+
   public synchronized long originSessionId(long clientOrderId) {
     int slot = find(clientOrderId);
     if (slot < 0) {

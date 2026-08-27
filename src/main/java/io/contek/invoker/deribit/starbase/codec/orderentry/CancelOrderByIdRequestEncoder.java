@@ -17,9 +17,7 @@ public final class CancelOrderByIdRequestEncoder {
       long sequence,
       long lastProcessedSequence,
       long sendTimeNanos) {
-    if (orderId < 0 || instrumentId < 0) {
-      throw new IllegalArgumentException("cancel-by-ID identifiers must be non-negative");
-    }
+    validateArguments(orderId, instrumentId);
     int encoded =
         SessionCodecSupport.encodeHeader(
             buffer,
@@ -35,6 +33,13 @@ public final class CancelOrderByIdRequestEncoder {
     buffer.putLong(body + 16, instrumentId);
     SessionCodecSupport.finishEncode(buffer, offset, 56);
     return encoded;
+  }
+
+  public static void validateArguments(long orderId, long instrumentId) {
+    if (orderId == Long.MIN_VALUE || instrumentId < 0) {
+      throw new IllegalArgumentException(
+          "cancel-by-ID identifiers must be non-null and instrumentId non-negative");
+    }
   }
 
   private CancelOrderByIdRequestEncoder() {}

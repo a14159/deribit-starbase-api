@@ -78,6 +78,55 @@ final class OrderBookStateRouter {
     }
   }
 
+  boolean activateAtomicSnapshots(long generation, long timestamp) {
+    for (int slot = 0; slot < occupied.length; slot++) {
+      if (occupied[slot]
+          && !states[slot].canActivateAtomicSnapshot(generation)) {
+        return false;
+      }
+    }
+    for (int slot = 0; slot < occupied.length; slot++) {
+      if (occupied[slot]) {
+        states[slot].activateAtomicSnapshot(generation, timestamp);
+      }
+    }
+    return true;
+  }
+
+  boolean hasAtomicSnapshots(long generation) {
+    for (int slot = 0; slot < occupied.length; slot++) {
+      if (occupied[slot] && !states[slot].hasAtomicSnapshot(generation)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  boolean allReady() {
+    for (int slot = 0; slot < occupied.length; slot++) {
+      if (occupied[slot] && !states[slot].isReady()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void abandonAtomicSnapshots(long timestamp) {
+    for (int slot = 0; slot < occupied.length; slot++) {
+      if (occupied[slot]) {
+        states[slot].abandonAtomicSnapshot(timestamp);
+      }
+    }
+  }
+
+  void incrementalEndOfCycleDuringRecovery() {
+    for (int slot = 0; slot < occupied.length; slot++) {
+      if (occupied[slot]) {
+        states[slot].incrementalEndOfCycleDuringRecovery();
+      }
+    }
+  }
+
   private int findSlot(long instrumentId) {
     int slot = mix(instrumentId) & mask;
     while (occupied[slot] && instrumentIds[slot] != instrumentId) {

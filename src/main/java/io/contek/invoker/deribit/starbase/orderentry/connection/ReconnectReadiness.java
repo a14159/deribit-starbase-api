@@ -94,6 +94,12 @@ public final class ReconnectReadiness implements AutoCloseable, OrderCommandRead
     updateReadiness();
   }
 
+  public synchronized void onReconciliationFailed() {
+    requireActiveSession("reconciliation failure");
+    reconciled = false;
+    updateReadiness();
+  }
+
   public synchronized void onDisconnected() {
     if (state == STATE_NEW || state == STATE_CLOSED || state == STATE_DISCONNECTED) {
       throw new IllegalStateException("disconnect is invalid in state " + state);

@@ -71,6 +71,25 @@ public final class FeedSequenceTracker {
     return gapSize;
   }
 
+  /** Advances past the exact held packet after its preceding gap was recovered or abandoned. */
+  public void advanceAfterGap(long packetSequence, int messageCount) {
+    if (!initialized || gapSize == 0) {
+      throw new IllegalStateException("feed tracker has no open gap");
+    }
+    if (packetSequence < 0 || (messageCount & ~0xFFFF) != 0) {
+      throw new IllegalArgumentException("invalid recovered packet range");
+    }
+    if (packetSequence != nextExpectedSequence + gapSize) {
+      throw new IllegalArgumentException("recovered packet does not match the held gap");
+    }
+    try {
+      nextExpectedSequence = Math.addExact(packetSequence, messageCount);
+    } catch (ArithmeticException exception) {
+      throw new StarbaseProtocolException("UDP sequence range overflow", exception);
+    }
+    gapSize = 0;
+  }
+
   public void reset() {
     initialized = false;
     nextExpectedSequence = 0;

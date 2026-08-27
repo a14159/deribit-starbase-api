@@ -10,6 +10,7 @@ import io.contek.invoker.deribit.starbase.common.GatewaySide;
 import io.contek.invoker.deribit.starbase.common.IoPolicy;
 import io.contek.invoker.deribit.starbase.common.ProductGroup;
 import io.contek.invoker.deribit.starbase.codec.marketdata.InstrumentStatusUpdateDecoder;
+import io.contek.invoker.deribit.starbase.codec.marketdata.IndexInfoDecoder;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -100,6 +101,31 @@ public final class MarketDataChannelRoutingTest {
     assertEquals(7L, observed[0]);
     assertEquals(InstrumentStatusUpdateDecoder.TEMPLATE_ID, observed[1]);
     assertEquals(999L, observed[2]);
+  }
+
+  public void testDecodedIndexInfoPublishesTheExactIndexIdentity() {
+    StarbaseMarketDataApi api = api(2);
+    long[] observed = new long[3];
+    api.getReferenceDataChannel()
+        .addListener(
+            (key, value, timestamp) -> {
+              observed[0] = key;
+              observed[1] = value;
+              observed[2] = timestamp;
+            });
+    ByteBuffer message = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN);
+    message.putShort(0, (short) 32);
+    message.putShort(2, (short) IndexInfoDecoder.TEMPLATE_ID);
+    message.putShort(4, (short) 1);
+    message.putLong(8, 777L);
+    message.putLong(16, -99L);
+    message.putLong(24, 123_456L);
+
+    api.routeDecodedMessage(message, 0, IndexInfoDecoder.TEMPLATE_ID, 10L);
+
+    assertEquals(-99L, observed[0]);
+    assertEquals(IndexInfoDecoder.TEMPLATE_ID, observed[1]);
+    assertEquals(777L, observed[2]);
   }
 
   private static StarbaseMarketDataApi api(int capacity) {

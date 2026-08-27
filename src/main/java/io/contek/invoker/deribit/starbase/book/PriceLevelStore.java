@@ -181,6 +181,23 @@ final class PriceLevelStore {
     return size;
   }
 
+  void forEach(PriceLevelConsumer consumer) {
+    if (consumer == null) {
+      throw new NullPointerException("consumer");
+    }
+    for (int slot = 0; slot < states.length; slot++) {
+      if (states[slot] == OCCUPIED) {
+        consumer.onLevel(
+            instrumentIds[slot],
+            sides[slot],
+            prices[slot],
+            quantities[slot],
+            orderCounts[slot],
+            firstSortOrderIds[slot]);
+      }
+    }
+  }
+
   void clear() {
     Arrays.fill(states, EMPTY);
     size = 0;

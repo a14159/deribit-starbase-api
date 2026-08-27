@@ -4,21 +4,201 @@
 
 | Field | Value |
 | --- | --- |
-| Overall state | **READY TO RESUME — the external identity gate is resolved; implementation remains inactive for a separate restart session** |
+| Overall state | **WAITING — local public assembly is complete; consumer integration is not in scope** |
 | Gate resolution date | 2026-08-27 |
-| Active task | None — do not start implementation in this documentation-only handoff session |
-| Blocking task | None external; `SPEC-02` is the first dependency-ready internal task |
-| Last completed implementation task | `CLIENT-ID-01`, native-long and canonical bidirectional String client-order IDs |
-| Local verification | 2026-08-27: formal Deribit support clarification establishes Starbase REST `order_id` as the decimal string serialization of SBE `orderId`. Current public OpenAPI still has erroneous UUID wording. Current production order-entry XML is v15/1.5; market data remains v1/1.0. Last clean suite: 2026-08-03, 300/300. |
-| Production readiness | **No** — component assembly, downstream consumer integration, joint builds, and private live validation remain |
-| Exact next action | In the separate restart session, re-download the required sources, mark `SPEC-02` active, and adopt/review the current v15/REST/market-data deltas test-first. Then mark `ORD-07` active, add the RED reconciliation/parser tests, and implement only the clarified decimal-string mapping. |
+| Active task | None; `CON-01` cannot be activated until a representative consumer repository is explicitly placed in scope |
+| Blocking task | Consumer repository/guidance is absent; the unresolved REST authentication conflict also remains isolated pending live evidence or clarification |
+| Last completed implementation task | `ASM-OE`, redundant public order-entry lifecycle assembly |
+| Local verification | 2026-08-28: focused order-entry assembly/codec/connection/factory tests 48/48; `StarbaseOrderEntryAssemblyTest` 12/12 including zero-byte post-warm-up routing; `mvnw clean test` 339/339 after `SPEC-02`, `ORD-07`, `ASM-MD`, and `ASM-OE`. |
+| Production readiness | **No** — downstream consumer integration, joint builds, private connectivity/authentication validation, and operations/rollback validation remain |
+| Exact next action | Explicitly place a representative consumer repository in scope; then inspect its guidance and git status, record `CON-01` active, and add the smallest dependency/backend-selection RED test before production changes. |
 
-There is no active implementation item in this session. `SPEC-01` is resolved by the
-formal 2026-08-27 clarification, but readiness remains closed until the current source
-delta, `ORD-07`, and the later assembly/validation work are completed. The separately
-requested `CLIENT-ID-01` API/correlation maintenance goal remains the last completed
-implementation task. No production source, schema resource, or test was changed while
-preparing this restart handoff.
+`SPEC-02`, `ORD-07`, and `ASM-MD` completed on 2026-08-27 after the required restart audit
+and test-first implementation. `ASM-OE` completed on 2026-08-28 after another complete
+official-source revalidation. `SPEC-01` remains resolved by the formal clarification, but
+production readiness remains closed until consumer integration and validation complete.
+
+## `ASM-OE` completion handoff
+
+`StarbaseApiFactory.orderEntry(A, B, recovery)` now constructs one public order-entry API
+that validates an exact matching-product/opposite-side pair and owns independent A/B
+credentials, TCP transports, frame loops, authentication, liveness, sequence state,
+correlations, and reconnect gates. Initial v15 logon resets sequence state; reconnect
+logon preserves exact inbound/outbound continuity and does not reset it. Heartbeats keep
+idle sessions alive, inbound gaps request the exact missing range, and any unresolved
+side gap closes global routing until resend recovery completes.
+
+The paired API owns one exact `LocalOrderStateStore`, fill de-duplicator, origin router,
+REST recovery cache, and per-session `OrderStateReconciliation`. Disconnect never retries
+an ambiguous command on the peer, invalidates both routing gates, and requires a later
+fresh exact REST snapshot before either side can route again. Failed, stale, REST-only,
+SBE-only, duplicate, malformed, pending, terminal-present, or capacity-exhausted recovery
+stays fail-closed. The identity is only the REST decimal string parsed by
+`Long.parseLong` and compared with the exact SBE `int64` order ID.
+
+Public limit/market/amend/cancel/scoped-mass-cancel paths preserve origin-session routing,
+correlation, authoritative status/quantity, queued and terminal lifecycles, immediate and
+unsolicited fills, and stable primitive event channels. Native signed-long and String
+client IDs are supported. Cancel by exchange ID resolves the exact authoritative local
+mapping and preserves every signed non-sentinel `int64` order ID. Unsupported or
+inconsistent state-changing messages fail the affected session and global readiness
+closed. Connection, authentication, reference, reconciliation, session-state, and trading
+readiness observations remain separate.
+
+Test-first evidence:
+
+- RED: the initial assembly test compile produced 13 expected missing API/constructor
+  errors. Deterministic follow-ups exposed open readiness on a peer gap, peer routing after
+  disconnect, missing immediate-amend fill handling, quantity-exponent mismatch, queued
+  state, paired factory construction, and ambiguous-write behavior. Public health,
+  String-ID, and exchange-ID additions later produced 11 expected compile errors; the
+  reference health getter produced two more.
+- PASS: focused order-entry assembly/codec/connection/factory verification is 48/48;
+  `StarbaseOrderEntryAssemblyTest` is 12/12; and the clean full suite is 339/339 with no
+  failures, errors, or skips.
+- The public new-order encode/route/state path measures zero allocated bytes after 3,000
+  warm-up operations. Earlier 1,000-operation probes observed one-time JVM warm-up totals
+  of 880 and 584 bytes, so they were not recorded as a steady-state pass.
+
+Changed production includes `StarbaseOrderEntryApi`, `StarbaseApiFactory`,
+`OrderCommandFacade`, `OrderSessionRouter`, `OrderEntryConnection`,
+`AuthenticationStateMachine`, `SessionLiveness`, `LocalOrderStateStore`,
+`OrderFillProcessor`, exact signed `CancelOrderById` validation, and the new
+`SocketOrderEntryTransport`. Changed tests include the new
+`StarbaseOrderEntryAssemblyTest` and `SocketOrderEntryTransportTest` plus affected
+factory/session/liveness/cancel coverage. Private live validation was unavailable; this
+task does not claim production readiness.
+
+## `ASM-MD` completion handoff
+
+`StarbaseApiFactory.marketData(A, B)` now returns one `StarbaseMarketDataApi` that validates
+an exact matching-product A/B pair and owns four independent receiver loops plus both
+retransmit transports. Per-feed cursors and diagnostics remain separate; message-level
+arbitration accepts the first valid A/B copy, suppresses duplicates, and lets either side
+continue contiguous progress.
+
+An incremental gap synchronously requests the exact missing global range through the
+affected side's bounded reusable retransmit client. Successful pages dispatch through the
+same validator/arbitrator before the held message is retried. Timeout, reject, or exhausted
+recovery invalidates configured books and waits past an `EndOfCycle` boundary for a whole
+fresh Starbase snapshot cycle; REST L2 is never introduced. Per-side held cursors advance
+only after recovery or safe abandonment, avoiding repeated false gaps.
+
+Configured books use the existing fixed-capacity `AtomicBookSnapshot` behind
+`ReconstructedOrderBookState`: snapshot mutations build staging books, concurrent
+incrementals buffer by exact sequence, and no replacement level is published before the
+trailer and complete-cycle boundary. Activation swaps the aggregate, emits an explicit
+invalidation followed by the complete current levels, and then resumes coherent live
+deltas. Late book configuration closes synchronization and requires another fresh cycle.
+Unsupported state-changing template 33 fails the affected input and global readiness
+closed; structural/feed failures remain visible in the corresponding diagnostics.
+`IndexDefinition`/`IndexInfo` identities are now routed to the stable reference channel.
+
+Public `isReady()` is distinct from transport connectivity and requires an owned redundant
+lifecycle, at least one usable incremental and snapshot input, an initialized global
+incremental cursor, a complete fresh snapshot cycle, no fatal assembly state, and every
+configured book ready. Explicit close owns all receiver/retransmit resources. The legacy
+single-context constructor remains usable for per-side diagnostics/replay but can never
+claim redundant readiness.
+
+Test-first evidence:
+
+- RED: `StarbaseMarketDataAssemblyTest` initially failed compilation with 38 missing public
+  assembly symbols; the late-book recovery case then failed functionally until it requested
+  a fresh cycle; and the recovered per-feed cursor test failed compilation with two missing
+  method errors.
+- PASS: deterministic A/B arbitration, duplicate, retransmit success/failure, fresh-cycle,
+  buffered overlap, late subscription, unsupported-state, four-loop lifecycle, readiness,
+  and reference-routing tests pass; clean full suite 322/322 with no failures, errors, or
+  skips.
+- The post-warm-up live A/B arbitration, validation, dispatch, L3 mutation, aggregation,
+  and channel-publication path measures zero allocated bytes.
+
+Changed production: `StarbaseApiFactory`, `StarbaseMarketDataApi`,
+`ReconstructedOrderBookState`, `OrderBookStateRouter`, `FeedSequenceTracker`,
+`FeedArbitrator`, `AggregatedL3Book`, `PriceLevelStore`, and the new
+`PriceLevelConsumer`. Changed tests: the new `StarbaseMarketDataAssemblyTest`, expanded
+transport lifecycle/feed-sequence/channel-routing coverage, and existing affected market
+data/book suites. Private live validation was unavailable; this task does not claim
+production readiness.
+
+## `ORD-07` completion handoff
+
+`StarbaseRestApi` now parses each `get_open_orders` `order_id` with exact
+`Long.parseLong` semantics and exposes the result as a primitive `long`. It does not trim,
+normalize, parse UUIDs, inspect labels, compare tuples, or use legacy currency-prefixed
+IDs. Malformed and overflowed values, the SBE `Long.MIN_VALUE` null sentinel, and
+duplicate/ambiguous primitive identities fail the entire snapshot closed.
+
+`OrderStateReconciliation` refreshes the rate-limited REST recovery cache, requires a
+fresh successful post-disconnect snapshot, and atomically compares the REST identities
+with `LocalOrderStateStore`. Exact live matches plus absent terminal orders are the only
+success case. REST-only, SBE-only, terminal-present, pending-local, duplicate, invalid,
+over-capacity, stale, failed, and disconnected states clear the reconciliation readiness
+gate. A refresh failure also closes a previously ready session even though the cache
+retains its last-good snapshot.
+
+Test-first evidence:
+
+- RED: the required parser and `OrderStateReconciliationTest` additions failed
+  compilation with 18 expected errors against the old String record and missing
+  reconciliation API.
+- PASS: focused parser/cache/store/readiness/reconciliation tests 28/28 and clean full
+  suite 311/311 with no failures, errors, or skips.
+
+Changed production: `StarbaseOpenOrder`, `StarbaseRestApi`, `OpenOrderRecoveryCache`,
+`LocalOrderStateStore`, `ReconnectReadiness`, and the new `OrderStateReconciliation`.
+Changed tests: `StarbaseOpenOrdersEndpointTest`, `OpenOrderRecoveryCacheTest`, and the new
+`OrderStateReconciliationTest`. `ORD-07` is complete as a fail-closed component; `ASM-OE`
+must compose it into the public order-entry lifecycle before that API can report ready.
+
+## `SPEC-02` completion handoff
+
+The restart audit re-downloaded the current production/testnet OE and MD XMLs, legacy XML
+bundle, current order and MD SDKs, legacy SDK, REST OpenAPI and endpoint/authentication
+references, binary reference, changelog, and official PCAP. Core hashes and versions were
+unchanged from the 2026-08-27 handoff. Exact URLs and hashes are recorded in
+[protocol-source-review.md](protocol-source-review.md).
+
+Applicable source deltas are adopted:
+
+- checked-in OE XML and metadata now pin production schema 2101/v15/semantic 1.5;
+- `Logon` hardcodes the 68-byte v15 body, production-v15 schema negotiation, and the
+  session cancel-on-disconnect flag; `LogonConf` hardcodes its 6-byte body and must echo
+  v15 in the assembled production lifecycle; order-entry frames accept the audited
+  compatible range v11-v15 but reject future versions;
+- session reject reason 6 and order/amend reject reason 30 are accepted, while later
+  values fail closed;
+- corrected MD v1 adds `IndexInfo` template 12, changes `InstrumentInfo` to 32 bytes with
+  mark price at offset 24, and changes `InstrumentRef` to 56 bytes with optional open
+  interest at offset 48; and
+- REST instruments retain optional `qty_tick_size`, while open orders retain optional
+  `reject_post_only`.
+
+The current REST sources conflict: the dedicated authentication guide requires HTTP Basic
+on every request, while the OpenAPI requires Bearer on private endpoints and explicitly no
+authentication on public instruments. No live evidence or formal clarification resolves
+that conflict. `SPEC-02` therefore preserves the existing OpenAPI-shaped Bearer/public
+behavior, records the conflict, and keeps readiness closed; it does not guess or silently
+switch credentials. The unchanged official PCAP does not contain templates 12, 14, or 15,
+so it remains valid evidence for the unaffected packet/message paths but cannot validate
+the corrected reference layouts.
+
+Test-first evidence:
+
+- RED: the focused compile failed with 17 expected missing-symbol/signature errors for the
+  new schema metadata, session fields, `IndexInfoDecoder`, open interest, and REST model
+  accessors.
+- PASS: focused source-adoption tests 41/41; boundary follow-up 16/16; and clean full suite
+  303/303 with no failures, errors, or skips.
+- Corrected reference/session decoder allocation checks remain zero bytes after warm-up.
+
+Changed production/resources: `ProtocolSchemas`, order-entry version/session/reject codecs,
+the new `IndexInfoDecoder`, corrected `InstrumentInfoDecoder`/`InstrumentRefDecoder`, MD
+dispatch, REST records/parser, and both checked-in schema XMLs. Changed tests: protocol
+pins, session/new/amend/dispatch/reference codec tests, and REST instrument/open-order
+endpoint tests. Private live validation was unavailable; `SPEC-02` does not claim
+production readiness.
 
 ## `CLIENT-ID-01` completion handoff
 
@@ -157,6 +337,8 @@ below; the tests and source are the detailed executable record, while
 | `OET-01`–`OET-07` | Reusable TCP frame assembly; serialized partial-write handling; explicit connection loop; authentication; heartbeat/inactivity; sequence/resend; reconnect/backoff/readiness gates | `orderentry/connection/*Test.java` |
 | `ORD-01`–`ORD-06`, `CLIENT-ID-01` | Fixed correlation table; cross-session local order state; command encoder facade; exact-once fills; native signed-long and stateless canonical bidirectional String client IDs; deterministic one-send A/B routing | `orderentry/state/*Test.java`, `orderentry/command/*Test.java` |
 | `RST-01`–`RST-05` | Configured bearer/no-auth HTTP transport; instruments and registry bootstrap; open-order parsing; cancel-all/lock/unlock; rate-limited recovery cache | `rest/*Test.java` |
+| `SPEC-02`, `ORD-07` | Current production schema/REST model adoption and exact decimal REST/SBE identity reconciliation | Protocol/REST/codec tests and `OrderStateReconciliationTest` |
+| `ASM-MD`, `ASM-OE` | Redundant public market-data and order-entry lifecycles with fail-closed recovery/readiness | `StarbaseMarketDataAssemblyTest`, `StarbaseOrderEntryAssemblyTest` |
 
 ### Official market-data fixture result
 
@@ -175,7 +357,7 @@ Post-warm-up tests report zero bytes on implemented normal paths for:
 - instrument lookup, L3 mutation, aggregation, and coherent book replay;
 - TCP frame assembly/write, heartbeat, and sequence state; and
 - correlation/order lifecycle, command encode/send, fills, client-ID forward conversion,
-  and routing.
+  routing, and the assembled public new-order encode/route/state path.
 
 The individual measured methods remain discoverable with:
 
@@ -188,7 +370,7 @@ These unit assertions do not replace the pending end-to-end benchmark.
 ## `OpenOrderRecoveryCache` handoff
 
 [`OpenOrderRecoveryCache`](../src/main/java/io/contek/invoker/deribit/starbase/rest/OpenOrderRecoveryCache.java)
-is the latest production component, not reconciliation:
+retains the last-good REST snapshot and its successful-refresh generation/timestamp:
 
 - rejects intervals below one minute; synchronized `get()`/`refresh()` permit one
   synchronous expired-snapshot load;
@@ -199,23 +381,22 @@ is the latest production component, not reconciliation:
 - counters/deadlines saturate.
 
 [`OpenOrderRecoveryCacheTest`](../src/test/java/io/contek/invoker/deribit/starbase/rest/OpenOrderRecoveryCacheTest.java)
-covers this. The cache never maps REST/SBE IDs, mutates `LocalOrderStateStore`, or marks
-reconciled; that is `ORD-07`.
+covers the cache contract. The cache itself never maps REST/SBE IDs or mutates local
+state; `OrderStateReconciliation` owns that fail-closed comparison and readiness gate.
 
 ## Known assembly and validation gaps
 
 Green component/replay tests do **not** make the public APIs a complete client:
 
-1. `StarbaseOrderEntryApi` remains a facade; `isAuthenticated()` always returns `false`.
-   Tested connection/auth/liveness/sequence/readiness/command/state/fill/mapping/routing
-   pieces are not composed.
-2. Each `StarbaseMarketDataApi` owns one `GatewaySide` and its incremental/snapshot
-   receiver; live gaps are only recorded. Tested `FeedArbitrator`, `RetransmitClient`,
-   `UdpRetransmitTransport`, and atomic recovery are unwired, so the API neither coordinates
-   A/B nor recovers gaps end to end.
-3. `IndexDefinition` is decoded but not applied/published. `BlockTrade` template 33 has no
-   codec and fails closed.
-4. Exact REST/SBE reconnect reconciliation is absent and readiness must remain closed.
+1. The redundant `StarbaseOrderEntryApi` lifecycle is assembled and tested locally, but no
+   private order-entry/REST environment or downstream execution adapter has validated it.
+2. The redundant `StarbaseMarketDataApi` lifecycle is assembled and tested locally, but no
+   private multicast/retransmit environment or downstream health adapter has validated it.
+3. Index definition/info identities are published to the primitive reference channel but
+   there is no named index registry. `BlockTrade` template 33 has no codec and fails closed.
+4. The REST authentication guide requires Basic while the OpenAPI specifies Bearer/private
+   and unauthenticated instruments. The configured OpenAPI-shaped behavior remains
+   isolated pending clarification or private live evidence.
 5. No downstream Starbase dependency/backend choice, stream/execution adapter, or health
    integration is validated.
 6. No joint dependency-graph build or private environment, credentials, authenticated
@@ -226,15 +407,15 @@ Green component/replay tests do **not** make the public APIs a complete client:
 | ID | State | Work | Dependency |
 | --- | --- | --- | --- |
 | `SPEC-01` | DONE | Formal clarification: Starbase REST `order_id` is the decimal string serialization of SBE `orderId` | Deribit support response dated 2026-08-27 |
-| `SPEC-02` | READY | Review/adopt applicable production OE v12-v15, corrected MD v1, and current REST source deltas with pinned resources and golden tests | Current official sources; `SPEC-01` resolved |
-| `ORD-07` | READY | Parse the clarified exact ID and reconcile missing, extra, matching, duplicate, invalid, and ambiguous REST/SBE orders before restoring readiness | `SPEC-02` |
-| `ASM-MD` | TODO | Compose both A/B feed instances, arbitration, retransmit, snapshot fallback, atomic books, and health into the public market-data lifecycle | `SPEC-02`; existing MD components |
-| `ASM-OE` | TODO | Compose TCP connection/session, dispatcher, state, commands, routing, events, recovery, and readiness into `StarbaseOrderEntryApi` | `ORD-07`; existing OE components |
+| `SPEC-02` | DONE | Adopted applicable production OE v12-v15, corrected MD v1, and unconflicted REST model deltas; unresolved REST authentication conflict isolated with readiness closed | Current official sources; `SPEC-01` resolved |
+| `ORD-07` | DONE | Parse the clarified exact ID and reconcile missing, extra, matching, duplicate, invalid, and ambiguous REST/SBE orders before restoring readiness | `SPEC-02` |
+| `ASM-MD` | DONE | Compose both A/B feed instances, arbitration, retransmit, snapshot fallback, atomic books, and health into the public market-data lifecycle | `SPEC-02`; existing MD components |
+| `ASM-OE` | DONE | Composed TCP A/B sessions, dispatcher, state, commands, routing, events, exact REST recovery, and fail-closed readiness into `StarbaseOrderEntryApi` | `ORD-07`; existing OE components |
 | `CON-01`–`CON-08` | TODO | Validate a representative consumer dependency, independent backend selection, lifecycle holder, book/trade adapters, execution/amend/cancel/open-order paths, and health/rollback behavior | `ASM-MD`, `ASM-OE`; follow the consumer repository's own guidance |
 | `VAL-01`–`VAL-07` | TODO | Full artifact and consumer-graph builds, replay/recovery/TCP scenarios, end-to-end allocations, private smoke tests, and operations/configuration/rollback audit | All integration work |
 
-Do not silently downgrade `ORD-07`, remove its readiness gate, or treat it as optional to
-unblock integration.
+Do not bypass the completed `ORD-07` reconciliation or any assembled readiness gate during
+consumer integration.
 
 ## Exact restart procedure
 
@@ -245,24 +426,17 @@ unblock integration.
    [schema-manifest.md](schema-manifest.md).
 3. Download the current direct production/testnet SBE XMLs, legacy XML bundle, REST
    OpenAPI/reference/authentication docs, binary reference/changelog, current order SDK,
-   and legacy SDK. Compute hashes and compare them with the 2026-08-27 pins.
-4. Mark `SPEC-02` active. Review every changed schema ID, version, template ID, block
-   length, offset, enum, null, flag, and padding rule, plus each applicable REST model and
-   authentication delta. Update checked-in references, manifest, hardcoded codecs, and
-   golden tests test-first; do not generate or runtime parse XML. Do not infer unrelated
-   fields or units from the private support example.
-5. Complete `SPEC-02` with focused/full pass evidence, then mark `ORD-07` active. First add
-   RED coverage to `StarbaseOpenOrdersEndpointTest` for the representative decimal string,
-   signed-long boundaries, malformed/overflow/sentinel values, and the stale UUID fixture.
-   Make `StarbaseOpenOrder` expose the exact primitive SBE identity.
-6. Add `OrderStateReconciliationTest` before its implementation. Cover exact matches,
-   REST-only orders, SBE-only orders, terminal orders, duplicates, invalid identity,
-   ambiguity rejection, snapshot failure/age, disconnect, and the readiness transition.
-7. Implement only `Long.parseLong(Starbase REST order_id)` identity semantics; never use
-   tuple/label matching or the legacy currency-prefixed `order_id`. Run focused and full
-   tests and record RED/pass evidence here.
-8. Complete `ASM-MD` and `ASM-OE` with deterministic integration tests before consumer
-   adapters, then work through the remaining integration and validation rows one at a time.
+   current MD SDK, and legacy SDK. Compute hashes and compare them with the 2026-08-28
+   revalidation record.
+4. Preserve completed `SPEC-02`, `ORD-07`, `ASM-MD`, and `ASM-OE` behavior. Do not guess
+   through the isolated REST authentication conflict or bypass any reference,
+   reconciliation, sequence, book, or session readiness gate.
+5. Do not activate `CON-01` until a representative consumer repository is explicitly in
+   scope. Then inspect that repository's own guidance and git status before planning or
+   editing it.
+6. Record `CON-01` active before consumer production changes. Add the smallest dependency
+   and independent-backend-selection RED tests, then work through consumer integration
+   and validation rows one at a time.
 
 ## Reproducible local verification
 

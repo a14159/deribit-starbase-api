@@ -15,6 +15,13 @@ public final class LogonDecoder {
     if (reset > 1) {
       throw new StarbaseProtocolException("invalid Logon resetSeqNum");
     }
+    int schemaVersion = schemaVersion(buffer, offset);
+    if (schemaVersion < 14 || schemaVersion > 15) {
+      throw new StarbaseProtocolException("unsupported Logon schemaVersion");
+    }
+    if (cancelOnDisconnect(buffer, offset) > 1) {
+      throw new StarbaseProtocolException("invalid Logon cancelOnDisconnect");
+    }
   }
 
   public static int clientIdByte(
@@ -33,6 +40,16 @@ public final class LogonDecoder {
   public static int resetSequenceNumber(ByteBuffer buffer, int offset) {
     return Byte.toUnsignedInt(
         buffer.get(offset + SessionCodecSupport.BODY_OFFSET + 64));
+  }
+
+  public static int schemaVersion(ByteBuffer buffer, int offset) {
+    return Short.toUnsignedInt(
+        buffer.getShort(offset + SessionCodecSupport.BODY_OFFSET + 65));
+  }
+
+  public static int cancelOnDisconnect(ByteBuffer buffer, int offset) {
+    return Byte.toUnsignedInt(
+        buffer.get(offset + SessionCodecSupport.BODY_OFFSET + 67));
   }
 
   private static void requireIndex(int index, int length) {

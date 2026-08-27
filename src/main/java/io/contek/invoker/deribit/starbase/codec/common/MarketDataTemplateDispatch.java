@@ -21,7 +21,7 @@ public final class MarketDataTemplateDispatch {
 
   public static int requireKnown(int templateId) {
     return switch (templateId) {
-      case 10, 11, 14, 15, 16, 20, 21, 22, 23, 24, 25, 30, 31, 33,
+      case 10, 11, 12, 14, 15, 16, 20, 21, 22, 23, 24, 25, 30, 31, 33,
           100, 101, 119, 200, 202 -> templateId;
       default -> throw new StarbaseProtocolException(
           "unknown market-data templateId: " + templateId);

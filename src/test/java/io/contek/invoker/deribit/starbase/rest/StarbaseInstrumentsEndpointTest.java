@@ -27,7 +27,7 @@ public final class StarbaseInstrumentsEndpointTest {
           {"instrument_id":5000000123,"instrument_name":"ETH-PERPETUAL",
            "kind":"perp_future","index_id":77,"product_group":"ETH",
            "base_currency":"ETH","quote_currency":"USDC","settlement_currency":"USDC",
-           "tick_size":0.01,"is_active":true,"creation_timestamp":1747500000000,
+           "tick_size":0.01,"qty_tick_size":0.001,"is_active":true,"creation_timestamp":1747500000000,
            "min_trade_amount":0.001,"contract_size":1,"maker_commission":-0.0001},
           {"instrument_id":200001,"instrument_name":"BTC-30MAY26-70000-C",
            "kind":"option","product_group":"BTC","base_currency":"BTC",
@@ -61,6 +61,7 @@ public final class StarbaseInstrumentsEndpointTest {
       assertEquals(StarbaseInstrumentKind.PERP_FUTURE, perpetual.kind());
       assertEquals(77L, perpetual.indexId());
       assertEquals(new BigDecimal("0.01"), perpetual.tickSize());
+      assertEquals(new BigDecimal("0.001"), perpetual.quantityTickSize());
       assertEquals(new BigDecimal("-0.0001"), perpetual.makerCommission());
       assertTrue(perpetual.active());
       assertEquals(5_000_000_123L, registry.instrumentId("ETH-PERPETUAL"));

@@ -22,7 +22,7 @@ public final class OpenOrderRecoveryCacheTest {
   public void testLoadsOnceCachesUntilExactMinuteBoundaryAndPublishesImmutableCopy() {
     FakeClock clock = new FakeClock(1_000L);
     AtomicInteger calls = new AtomicInteger();
-    ArrayList<StarbaseOpenOrder> mutable = new ArrayList<>(List.of(order("one")));
+    ArrayList<StarbaseOpenOrder> mutable = new ArrayList<>(List.of(order(1)));
     OpenOrderRecoveryCache cache = new OpenOrderRecoveryCache(
         clock, Duration.ofMinutes(1), () -> { calls.incrementAndGet(); return mutable; });
 
@@ -30,7 +30,7 @@ public final class OpenOrderRecoveryCacheTest {
     mutable.clear();
     assertSame(first, cache.get());
     assertEquals(1, first.size());
-    assertThrows(UnsupportedOperationException.class, () -> first.add(order("bad")));
+    assertThrows(UnsupportedOperationException.class, () -> first.add(order(2)));
     assertEquals(1, calls.get());
 
     clock.set(60_000_000_999L);
@@ -45,7 +45,7 @@ public final class OpenOrderRecoveryCacheTest {
     FakeClock clock = new FakeClock(0L);
     AtomicInteger calls = new AtomicInteger();
     OpenOrderRecoveryCache cache = new OpenOrderRecoveryCache(clock, Duration.ofMinutes(1), () -> {
-      if (calls.incrementAndGet() == 1) return List.of(order("good"));
+      if (calls.incrementAndGet() == 1) return List.of(order(1));
       throw new StarbaseRestException("gateway failed", 500, -1, null, false, null);
     });
     List<StarbaseOpenOrder> good = cache.get();
@@ -74,7 +74,7 @@ public final class OpenOrderRecoveryCacheTest {
         Thread.currentThread().interrupt();
         throw new IllegalStateException(interrupted);
       }
-      return List.of(order("shared"));
+      return List.of(order(1));
     });
 
     try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
@@ -105,11 +105,11 @@ public final class OpenOrderRecoveryCacheTest {
         () -> new OpenOrderRecoveryCache(clock, Duration.ofSeconds(59), List::of));
   }
 
-  private static StarbaseOpenOrder order(String id) {
+  private static StarbaseOpenOrder order(long id) {
     return new StarbaseOpenOrder(id, "BTC-PERPETUAL", StarbaseOrderSide.BUY,
         BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,
         StarbaseRestOrderState.OPEN, StarbaseRestOrderType.LIMIT, StarbaseTimeInForce.GTC,
-        false, false, 1L, 1L, null, true, null, null, BigDecimal.ZERO);
+        false, false, false, 1L, 1L, null, true, null, null, BigDecimal.ZERO);
   }
 
   private static final class FakeClock implements io.contek.invoker.deribit.starbase.common.NanoClock {

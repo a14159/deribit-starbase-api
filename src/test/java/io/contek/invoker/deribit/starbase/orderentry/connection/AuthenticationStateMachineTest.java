@@ -104,6 +104,22 @@ public final class AuthenticationStateMachineTest {
     assertEquals(AuthenticationStateMachine.FAILURE_PROTOCOL, duplicate.failureCode());
   }
 
+  public void testGatewayMustEchoTheExactRequestedProductionSchemaCeiling() {
+    MutableClock clock = new MutableClock();
+    AuthenticationStateMachine authentication = machine(clock, new CapturingTransport());
+    assertTrue(authentication.begin(1, 0, true));
+    ByteBuffer confirmation = ByteBuffer.allocate(40).order(ByteOrder.LITTLE_ENDIAN);
+    LogonConfirmationCodec.encode(confirmation, 0, 10, 14, 1, 1, 2);
+
+    assertThrows(
+        StarbaseProtocolException.class,
+        () ->
+            authentication.onMessage(
+                LogonConfirmationCodec.TEMPLATE_ID, confirmation, 0));
+    assertTrue(authentication.isFailed());
+    assertEquals(AuthenticationStateMachine.FAILURE_PROTOCOL, authentication.failureCode());
+  }
+
   public void testWrongRejectReferenceAndUnexpectedTemplateFailClosed() {
     MutableClock clock = new MutableClock();
     AuthenticationStateMachine wrongReference = machine(clock, new CapturingTransport());

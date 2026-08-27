@@ -10,6 +10,15 @@ public final class LocalOrderStateStore {
   public static final int STATE_FILLED = 4;
   public static final int STATE_CANCELED = 5;
   public static final int STATE_REJECTED = 6;
+  public static final int STATE_QUEUED = 7;
+
+  static final int RECONCILIATION_MATCHED = 0;
+  static final int RECONCILIATION_INVALID_IDENTITY = 1;
+  static final int RECONCILIATION_DUPLICATE_IDENTITY = 2;
+  static final int RECONCILIATION_REST_ONLY = 3;
+  static final int RECONCILIATION_SBE_ONLY = 4;
+  static final int RECONCILIATION_TERMINAL_MISMATCH = 5;
+  static final int RECONCILIATION_PENDING_LOCAL = 6;
 
   private final byte[] states;
   private final long[] clientOrderIds;
@@ -18,6 +27,7 @@ public final class LocalOrderStateStore {
   private final byte[] sides;
   private final long[] prices;
   private final long[] originalQuantities;
+  private final byte[] quantityExponents;
   private final long[] remainingQuantities;
   private final long[] originSessionIds;
   private final long[] originEventSequences;
@@ -38,6 +48,7 @@ public final class LocalOrderStateStore {
     sides = new byte[capacity];
     prices = new long[capacity];
     originalQuantities = new long[capacity];
+    quantityExponents = new byte[capacity];
     remainingQuantities = new long[capacity];
     originSessionIds = new long[capacity];
     originEventSequences = new long[capacity];
@@ -49,6 +60,16 @@ public final class LocalOrderStateStore {
 
   public synchronized boolean registerPending(
       long clientOrderId, long instrumentId, int side, long price, long quantity) {
+    return registerPending(clientOrderId, instrumentId, side, price, quantity, 0);
+  }
+
+  public synchronized boolean registerPending(
+      long clientOrderId,
+      long instrumentId,
+      int side,
+      long price,
+      long quantity,
+      int quantityExponent) {
     requireId(clientOrderId, "clientOrderId");
     requireId(instrumentId, "instrumentId");
     if (side != 1 && side != 2) {
@@ -56,6 +77,9 @@ public final class LocalOrderStateStore {
     }
     if (quantity < 1) {
       throw new IllegalArgumentException("quantity must be positive");
+    }
+    if (quantityExponent < -127 || quantityExponent > 127) {
+      throw new IllegalArgumentException("quantityExponent must be a non-null int8");
     }
     if (findByClientId(clientOrderId) >= 0) {
       return false;
@@ -71,6 +95,7 @@ public final class LocalOrderStateStore {
     sides[slot] = (byte) side;
     prices[slot] = price;
     originalQuantities[slot] = quantity;
+    quantityExponents[slot] = (byte) quantityExponent;
     remainingQuantities[slot] = quantity;
     size++;
     return true;
@@ -99,6 +124,71 @@ public final class LocalOrderStateStore {
     return true;
   }
 
+  public synchronized boolean queue(
+      long sessionId, long eventSequence, long clientOrderId, long orderId, long quantity) {
+    requireEvent(sessionId, eventSequence);
+    requireId(orderId, "orderId");
+    int slot = findByClientId(clientOrderId);
+    if (slot < 0 || states[slot] != STATE_PENDING || findByOrderId(orderId) >= 0) {
+      return false;
+    }
+    if (quantity < 1 || quantity > originalQuantities[slot]) {
+      throw new IllegalArgumentException("invalid queued quantity");
+    }
+    orderIds[slot] = orderId;
+    remainingQuantities[slot] = quantity;
+    originSessionIds[slot] = sessionId;
+    recordEvent(slot, sessionId, eventSequence);
+    states[slot] = STATE_QUEUED;
+    return true;
+  }
+
+  /** Applies the authoritative status carried by the same or a later validated event. */
+  public synchronized boolean applyStatus(
+      long sessionId, long eventSequence, long orderId, long remainingQuantity, int status) {
+    requireEvent(sessionId, eventSequence);
+    int slot = findByOrderId(orderId);
+    if (slot < 0
+        || !(isLive(states[slot])
+            || states[slot] == STATE_FILLED && status == 2
+            || states[slot] == STATE_CANCELED && status == 3)
+        || isBefore(slot, sessionId, eventSequence)) {
+      return false;
+    }
+    if (remainingQuantity < 0 || remainingQuantity > originalQuantities[slot]) {
+      throw new IllegalArgumentException("invalid status remainingQuantity");
+    }
+    int nextState =
+        switch (status) {
+          case 1 -> {
+            if (remainingQuantity == 0) {
+              throw new IllegalArgumentException("active order has no remaining quantity");
+            }
+            yield remainingQuantity == originalQuantities[slot]
+                ? STATE_OPEN
+                : STATE_PARTIALLY_FILLED;
+          }
+          case 2 -> {
+            if (remainingQuantity != 0) {
+              throw new IllegalArgumentException("filled order has remaining quantity");
+            }
+            yield STATE_FILLED;
+          }
+          case 3 -> STATE_CANCELED;
+          case 4 -> {
+            if (remainingQuantity == 0) {
+              throw new IllegalArgumentException("queued order has no remaining quantity");
+            }
+            yield STATE_QUEUED;
+          }
+          default -> throw new IllegalArgumentException("unknown order status: " + status);
+        };
+    remainingQuantities[slot] = remainingQuantity;
+    states[slot] = (byte) nextState;
+    recordEvent(slot, sessionId, eventSequence);
+    return true;
+  }
+
   public synchronized boolean amend(
       long sessionId, long eventSequence, long orderId, long remainingQuantity) {
     requireEvent(sessionId, eventSequence);
@@ -115,6 +205,52 @@ public final class LocalOrderStateStore {
     }
     remainingQuantities[slot] = remainingQuantity;
     states[slot] = (byte) priorState;
+    recordEvent(slot, sessionId, eventSequence);
+    return true;
+  }
+
+  /** Applies one authoritative amend response, including its total and terminal status. */
+  public synchronized boolean amendOutcome(
+      long sessionId,
+      long eventSequence,
+      long orderId,
+      long totalQuantity,
+      long remainingQuantity,
+      int status) {
+    requireEvent(sessionId, eventSequence);
+    int slot = findByOrderId(orderId);
+    if (slot < 0 || !isLive(states[slot]) || isStale(slot, sessionId, eventSequence)) {
+      return false;
+    }
+    if (totalQuantity < 1 || remainingQuantity < 0 || remainingQuantity > totalQuantity) {
+      throw new IllegalArgumentException("invalid amend outcome quantity");
+    }
+    int nextState =
+        switch (status) {
+          case 1 -> {
+            if (remainingQuantity == 0) {
+              throw new IllegalArgumentException("active amend has no remaining quantity");
+            }
+            yield remainingQuantity == totalQuantity ? STATE_OPEN : STATE_PARTIALLY_FILLED;
+          }
+          case 2 -> {
+            if (remainingQuantity != 0) {
+              throw new IllegalArgumentException("filled amend has remaining quantity");
+            }
+            yield STATE_FILLED;
+          }
+          case 3 -> STATE_CANCELED;
+          case 4 -> {
+            if (remainingQuantity == 0) {
+              throw new IllegalArgumentException("queued amend has no remaining quantity");
+            }
+            yield STATE_QUEUED;
+          }
+          default -> throw new IllegalArgumentException("unknown amend status: " + status);
+        };
+    originalQuantities[slot] = totalQuantity;
+    remainingQuantities[slot] = remainingQuantity;
+    states[slot] = (byte) nextState;
     recordEvent(slot, sessionId, eventSequence);
     return true;
   }
@@ -228,8 +364,65 @@ public final class LocalOrderStateStore {
     return remainingQuantities[requiredOrderSlot(orderId)];
   }
 
+  public synchronized long originalQuantity(long orderId) {
+    return originalQuantities[requiredOrderSlot(orderId)];
+  }
+
+  public synchronized int quantityExponent(long orderId) {
+    return quantityExponents[requiredOrderSlot(orderId)];
+  }
+
+  public synchronized int quantityExponentByClientOrderId(long clientOrderId) {
+    int slot = findByClientId(clientOrderId);
+    if (slot < 0) {
+      throw new IllegalArgumentException("unknown clientOrderId: " + clientOrderId);
+    }
+    return quantityExponents[slot];
+  }
+
   public synchronized int size() {
     return size;
+  }
+
+  synchronized int capacity() {
+    return states.length;
+  }
+
+  synchronized int compareOpenOrderIds(long[] snapshotOrderIds, int count) {
+    if (snapshotOrderIds == null || count < 0 || count > snapshotOrderIds.length) {
+      throw new IllegalArgumentException("invalid open-order snapshot identity range");
+    }
+    for (int index = 0; index < count; index++) {
+      long orderId = snapshotOrderIds[index];
+      if (orderId == Long.MIN_VALUE) {
+        return RECONCILIATION_INVALID_IDENTITY;
+      }
+      for (int prior = 0; prior < index; prior++) {
+        if (snapshotOrderIds[prior] == orderId) {
+          return RECONCILIATION_DUPLICATE_IDENTITY;
+        }
+      }
+      int slot = findByOrderId(orderId);
+      if (slot < 0) {
+        return RECONCILIATION_REST_ONLY;
+      }
+      if (isTerminal(states[slot])) {
+        return RECONCILIATION_TERMINAL_MISMATCH;
+      }
+      if (!isLive(states[slot])) {
+        return RECONCILIATION_REST_ONLY;
+      }
+    }
+    for (int slot = 0; slot < states.length; slot++) {
+      int state = states[slot];
+      if (state == STATE_PENDING) {
+        return RECONCILIATION_PENDING_LOCAL;
+      }
+      if (isLive(state) && !contains(snapshotOrderIds, count, orderIds[slot])) {
+        return RECONCILIATION_SBE_ONLY;
+      }
+    }
+    return RECONCILIATION_MATCHED;
   }
 
   private void recordEvent(int slot, long sessionId, long eventSequence) {
@@ -250,6 +443,15 @@ public final class LocalOrderStateStore {
     return alternateEventSequences[slot] != 0
         && alternateSessionIds[slot] == sessionId
         && eventSequence <= alternateEventSequences[slot];
+  }
+
+  private boolean isBefore(int slot, long sessionId, long eventSequence) {
+    if (originSessionIds[slot] == sessionId) {
+      return eventSequence < originEventSequences[slot];
+    }
+    return alternateEventSequences[slot] != 0
+        && alternateSessionIds[slot] == sessionId
+        && eventSequence < alternateEventSequences[slot];
   }
 
   private int requiredOrderSlot(long orderId) {
@@ -298,6 +500,7 @@ public final class LocalOrderStateStore {
     sides[slot] = 0;
     prices[slot] = 0;
     originalQuantities[slot] = 0;
+    quantityExponents[slot] = 0;
     remainingQuantities[slot] = 0;
     originSessionIds[slot] = 0;
     originEventSequences[slot] = 0;
@@ -308,11 +511,20 @@ public final class LocalOrderStateStore {
   }
 
   private static boolean isLive(int state) {
-    return state == STATE_OPEN || state == STATE_PARTIALLY_FILLED;
+    return state == STATE_OPEN || state == STATE_PARTIALLY_FILLED || state == STATE_QUEUED;
   }
 
   private static boolean isTerminal(int state) {
     return state == STATE_FILLED || state == STATE_CANCELED || state == STATE_REJECTED;
+  }
+
+  private static boolean contains(long[] values, int count, long value) {
+    for (int index = 0; index < count; index++) {
+      if (values[index] == value) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static void requireId(long id, String name) {

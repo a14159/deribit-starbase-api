@@ -136,8 +136,15 @@ portfolio cancel, lock, unlock. Open-order snapshots are immutable, cached, sing
 and attempted no faster than documented. Failure may retain last-good state but cannot
 invent the first snapshot or restore readiness.
 
-REST/SBE reconciliation requires an official collision-free exact identity bridge;
-instrument/side/price/amount/time tuples and optional labels are invalid substitutes.
+REST/SBE reconciliation uses the formal Deribit clarification received on 2026-08-27 for
+Starbase REST `GET /api/v2/private/get_open_orders`: its string `order_id` is the base-10
+serialization of the same signed `int64` value carried as SBE `orderId`. Parse it with exact
+`Long.parseLong` semantics and compare the resulting primitive value directly. Reject a
+missing, malformed, out-of-range, SBE-null-sentinel, duplicate, or otherwise ambiguous
+identity and keep readiness closed. The public OpenAPI's UUID wording was explicitly
+identified by Deribit as a documentation error; do not treat the value as a UUID or as the
+unrelated currency-prefixed legacy `order_id`. Instrument/side/price/amount/time tuples and
+optional labels remain invalid substitutes.
 
 ## Downstream consumer integration contract
 

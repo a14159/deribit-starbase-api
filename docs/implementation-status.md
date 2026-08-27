@@ -4,24 +4,21 @@
 
 | Field | Value |
 | --- | --- |
-| Overall state | **PAUSED — awaiting a corrected or clarified Deribit specification** |
-| Pause date | 2026-07-31 |
-| Active task | None |
-| Blocking task | `ORD-07`, exact REST-to-SBE open-order reconciliation |
-| Last completed task | `CLIENT-ID-01`, native-long and canonical bidirectional String client-order IDs |
-| Local verification | 2026-08-08: official XML bundle, binary-reference Markdown, and changelog Markdown changed; REST OpenAPI and SDK remained byte-for-byte pinned. The changed XML still supplies no exact REST/SBE identity bridge. Last clean suite: 2026-08-03, 300/300. |
+| Overall state | **READY TO RESUME — the external identity gate is resolved; implementation remains inactive for a separate restart session** |
+| Gate resolution date | 2026-08-27 |
+| Active task | None — do not start implementation in this documentation-only handoff session |
+| Blocking task | None external; `SPEC-02` is the first dependency-ready internal task |
+| Last completed implementation task | `CLIENT-ID-01`, native-long and canonical bidirectional String client-order IDs |
+| Local verification | 2026-08-27: formal Deribit support clarification establishes Starbase REST `order_id` as the decimal string serialization of SBE `orderId`. Current public OpenAPI still has erroneous UUID wording. Current production order-entry XML is v15/1.5; market data remains v1/1.0. Last clean suite: 2026-08-03, 300/300. |
 | Production readiness | **No** — component assembly, downstream consumer integration, joint builds, and private live validation remain |
-| Exact next action | Wait for a corrected or clarified REST/SBE identity bridge, then revalidate the current v12/1.4 order-entry and corrected market-data XML before selecting a test-first task; do not start `ORD-07` or downstream assembly without the exact bridge. |
+| Exact next action | In the separate restart session, re-download the required sources, mark `SPEC-02` active, and adopt/review the current v15/REST/market-data deltas test-first. Then mark `ORD-07` active, add the RED reconciliation/parser tests, and implement only the clarified decimal-string mapping. |
 
-There is no active implementation item: a green suite does not bypass the identity gate.
-The separately requested, pause-safe `CLIENT-ID-01` API/correlation maintenance goal is
-complete without changing SBE layout, REST/SBE reconciliation, readiness, or downstream
-assembly. The existing `SPEC-01`/`ORD-07` pause remains authoritative.
-
-The 2026-08-06 restart audit downloaded every required official source again. All five
-download hashes match the 2026-08-03 pins, and the OpenAPI `Order` model still exposes a
-UUID-style string `order_id` and optional nullable `label`, but no numeric SBE `orderId`,
-`clientOrderId`, or documented reversible mapping. No implementation task was resumed.
+There is no active implementation item in this session. `SPEC-01` is resolved by the
+formal 2026-08-27 clarification, but readiness remains closed until the current source
+delta, `ORD-07`, and the later assembly/validation work are completed. The separately
+requested `CLIENT-ID-01` API/correlation maintenance goal remains the last completed
+implementation task. No production source, schema resource, or test was changed while
+preparing this restart handoff.
 
 ## `CLIENT-ID-01` completion handoff
 
@@ -84,99 +81,63 @@ Changed production files: `ClientOrderIdMap`, `OrderCommandFacade`,
 request-codec tests. Private live validation was unavailable; this maintenance task does
 not claim production readiness.
 
-## Why work is paused
+## Resolved external identity gate
 
-Local SBE state uses exact signed 64-bit `orderId`/`clientOrderId`; REST 2.0 `Order` has:
+The original gate was valid: local SBE state uses exact signed 64-bit `orderId`, while the
+public Starbase REST OpenAPI described `Order.order_id` as a UUID-style string and supplied
+no numeric bridge. Tuple/label matching could bind the wrong order and reopen trading after
+disconnect, so `ReconnectReadiness.onReconciled()` had to remain unavailable.
 
-- a required UUID-style string `order_id`;
-- an optional/nullable string `label`; and
-- no numeric SBE `orderId`, `clientOrderId`, or documented reversible equivalent.
+On 2026-08-27, Deribit support answered an explicit question about the portfolio-scoped
+Starbase REST `GET /api/v2/private/get_open_orders` endpoint. The clarification states:
 
-The reviewed REST `Order` properties are:
+- the endpoint's `order_id` is not a UUID;
+- it is the exact SBE `orderId`, serialized as a base-10 JSON string;
+- Java `Long.parseLong(order_id)` yields the value used for SBE reconciliation; and
+- the currency-prefixed legacy `order_id` is separate and has no conversion to the SBE ID.
 
-```text
-amount, api, average_price, commission, creation_timestamp, filled_amount,
-instrument_name, label, last_update_timestamp, max_show, order_id, order_state,
-order_type, post_only, price, profit_loss, reduce_only, side, time_in_force
-```
+Support supplied a representative Starbase REST order whose `order_id` is
+`"215074398825086978"`, explicitly identifying the public OpenAPI's UUID description as a
+documentation error that Deribit intends to correct. This is the collision-free formal
+clarification required by the contract, so `SPEC-01` is complete and `ORD-07` is no longer
+externally blocked.
 
-Required fields are `order_id`, `instrument_name`, `side`, `price`, `amount`,
-`filled_amount`, `order_state`, and `order_type`.
+Implementation must parse the string exactly into a signed `long`, reject malformed or
+overflowed input and `Long.MIN_VALUE` (the SBE null sentinel), reject duplicate/ambiguous
+snapshot identities, and compare the primitive value directly with local SBE state. It
+must not implement UUID parsing, tuple/label fallback, or conversion from the unrelated
+legacy identifier. The additional undocumented fields in the support example are not part
+of this clarification and must not be inferred into production behavior without separate
+source evidence.
 
-Tuple/label matching is ambiguous and could bind the wrong order, then reopen trading after
-disconnect. The contract forbids it; `ReconnectReadiness.onReconciled()` is unsafe.
+### 2026-08-27 clarification and restart audit
 
-The blocker was rechecked three times on 2026-07-31 against:
+The formal support clarification above resolves `SPEC-01`, despite the still-incorrect
+public OpenAPI. Fresh source review also found changes that must be handled before `ORD-07`:
 
-- REST OpenAPI 2.0, SHA-256
-  `F2F2DD44CC4ED63ACC8C4E30545B2829514BF20566EE0C6AEFBA16D0F6F267DB`;
-- order-entry SBE schema 2101/v11/1.3, SHA-256
-  `70B1B297A4D8472CA31C76E97613909B136C0CF4782CB858CAC306696C0C5A89`;
-- official Starbase SDK 0.5.1, archive SHA-256
-  `57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`;
-- official binary docs and local state models.
-
-The SDK has numeric SBE IDs but no REST model/client or UUID bridge. Deribit must expose a
-shared exact SBE identifier in REST or formally specify another collision-free reversible
-mapping.
-
-### 2026-08-06 restart audit
-
-Fresh official downloads remained byte-for-byte unchanged:
-
-- XML bundle SHA-256
-  `D36FEDB7AEB2FC5418FBFCFA9FBA80762E865689198B34A64DAEC8DB6D6FB425`;
-- REST OpenAPI SHA-256
-  `F2F2DD44CC4ED63ACC8C4E30545B2829514BF20566EE0C6AEFBA16D0F6F267DB`;
-- SDK 0.5.1 archive SHA-256
-  `57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`;
+- Starbase REST OpenAPI SHA-256
+  `2E8E1B6FB09D988059BE2A63A4D8E0C6F986EAA343C2AB046D573E439C2E187E`; it still calls
+  `order_id` a UUID-style string, so the support clarification governs identity semantics;
+- production order-entry XML is schema 2101/v15/semantic version 1.5, SHA-256
+  `4BA2A80B473AC233B6DDB971158E7A65353B1E287C7B304F14062AC2E5E9106C`;
+- market-data XML remains schema 2102/v1/semantic version 1.0, SHA-256
+  `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`;
 - binary-reference Markdown SHA-256
-  `908CF0464BD0A065C2851B7085D9ED5657740C9541F0F857D105600844008369`;
-  and
-- Starbase changelog Markdown SHA-256
-  `A9F2BC9F7921A6639855BCAD075A49BF4748612729679A2513C86504C6BE52F3`.
+  `6BC97D8A31BE0DE3372F468AFA957CD10D807C05D8F5647D8BB2BB800B9E3339`;
+- changelog Markdown SHA-256
+  `2F0B8C8BC6D2E968954734F28D2E615CCC44EB0E0E5847B0DDEC2320CF23B45F`;
+- current order SDK remains schema v14, archive SHA-256
+  `25B23E41E1FB92E290DD6D4E4124A9A69C2E215274C6957C22DE4BCFB8D6392D`; and
+- the legacy XML bundle and SDK remain SHA-256
+  `4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42` and
+  `57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`.
 
-The order-entry XML remains schema 2101/v11/1.3 with signed-64-bit `OrderId` and
-`ClientOrderId`. The unchanged OpenAPI 2.0 `Order` properties remain `order_id`,
-`instrument_name`, `side`, `price`, `amount`, `filled_amount`, `average_price`,
-`order_state`, `order_type`, `time_in_force`, `post_only`, `reduce_only`,
-`creation_timestamp`, `last_update_timestamp`, `label`, `api`, `max_show`, `profit_loss`,
-and `commission`. Its required `order_id` remains a UUID-style string; neither it nor the
-SDK supplies an exact bridge to either SBE identifier. `SPEC-01` therefore remains waiting
-and `ORD-07` remains blocked.
-
-### 2026-08-08 restart audit
-
-Three official artifacts changed, while the REST identity source did not:
-
-- XML bundle SHA-256 is now
-  `4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42`;
-- order-entry XML is now schema 2101/v12/semantic version 1.4, SHA-256
-  `ABB62943716230852B0684A6D3CE9BA1C42E235EFD424E7DED5C3864A0EC19BA`;
-- market-data XML remains schema 2102/v1/semantic version 1.0 but is corrected,
-  SHA-256 `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`;
-- binary-reference Markdown is now SHA-256
-  `25B0A38C344DB86F215DB766A502250E3BE5EAA13BE81E5D661F7CFC447FD43C`; and
-- Starbase changelog Markdown is now SHA-256
-  `42EECE609A40388B030F2144985764BE1CB89EBE4B82417BC3EC06DC5B09CC83`.
-
-The current OpenAPI and SDK remain byte-for-byte unchanged at
-`F2F2DD44CC4ED63ACC8C4E30545B2829514BF20566EE0C6AEFBA16D0F6F267DB` and
-`57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`, respectively.
-The REST `Order` model therefore still has only UUID-style `order_id` and nullable `label`,
-not an exact numeric SBE identity or documented reversible mapping.
-
-The new order-entry XML adds only schema negotiation: `Logon` (template 1) gains a
-`uint16 schemaVersion` field (ID 67, since version 12), and `LogonConf` (template 2) gains
-the accepted `uint16 schemaVersion` (ID 6). It does not add an order-identity bridge. The
-7 August market-data correction adds `IndexInfo` (template 12), removes `indexPrice` from
-`InstrumentInfo` and moves `markPrice` to field ID 32, and adds optional `openInterest` to
-`InstrumentRef` (field ID 56). The market-data protocol version remains 1 despite those
-wire-layout changes.
-
-The changed XML must not be adopted into the hardcoded codecs during this paused audit:
-the unchanged REST identity evidence leaves `SPEC-01` waiting and `ORD-07` blocked. No
-production source, checked-in schema, or test was changed.
+Production v15 adds `MMP_MIN_FREEZE_TIME_NOT_ELAPSED` to `OrderRejectReason` as value 30
+and to `MassQuoteRejectReason` as value 9. The public binary reference still links a v14
+order SDK, and testnet remains v14. The current OpenAPI also differs from the implemented
+REST baseline and still specifies Bearer authentication while the dedicated authentication
+guide specifies HTTP Basic. These source deltas belong to `SPEC-02`; no behavior was
+changed in this documentation-only handoff.
 
 ## Implemented and verified component inventory
 
@@ -264,9 +225,10 @@ Green component/replay tests do **not** make the public APIs a complete client:
 
 | ID | State | Work | Dependency |
 | --- | --- | --- | --- |
-| `SPEC-01` | WAITING | Obtain and revalidate a newer official OpenAPI/XML/docs/SDK release with an exact REST/SBE identity bridge | Deribit release or formal clarification |
-| `ORD-07` | BLOCKED | Reconcile missing, extra, matching, duplicate, and ambiguous REST/SBE orders before restoring readiness | `SPEC-01` |
-| `ASM-MD` | TODO | Compose both A/B feed instances, arbitration, retransmit, snapshot fallback, atomic books, and health into the public market-data lifecycle | New schema review; existing MD components |
+| `SPEC-01` | DONE | Formal clarification: Starbase REST `order_id` is the decimal string serialization of SBE `orderId` | Deribit support response dated 2026-08-27 |
+| `SPEC-02` | READY | Review/adopt applicable production OE v12-v15, corrected MD v1, and current REST source deltas with pinned resources and golden tests | Current official sources; `SPEC-01` resolved |
+| `ORD-07` | READY | Parse the clarified exact ID and reconcile missing, extra, matching, duplicate, invalid, and ambiguous REST/SBE orders before restoring readiness | `SPEC-02` |
+| `ASM-MD` | TODO | Compose both A/B feed instances, arbitration, retransmit, snapshot fallback, atomic books, and health into the public market-data lifecycle | `SPEC-02`; existing MD components |
 | `ASM-OE` | TODO | Compose TCP connection/session, dispatcher, state, commands, routing, events, recovery, and readiness into `StarbaseOrderEntryApi` | `ORD-07`; existing OE components |
 | `CON-01`–`CON-08` | TODO | Validate a representative consumer dependency, independent backend selection, lifecycle holder, book/trade adapters, execution/amend/cancel/open-order paths, and health/rollback behavior | `ASM-MD`, `ASM-OE`; follow the consumer repository's own guidance |
 | `VAL-01`–`VAL-07` | TODO | Full artifact and consumer-graph builds, replay/recovery/TCP scenarios, end-to-end allocations, private smoke tests, and operations/configuration/rollback audit | All integration work |
@@ -281,23 +243,26 @@ unblock integration.
 2. Read [implementation-contract.md](implementation-contract.md), this file,
    [protocol-source-review.md](protocol-source-review.md), and
    [schema-manifest.md](schema-manifest.md).
-3. Download the current official SBE XML bundle, REST OpenAPI, binary reference/changelog,
-   and SDK. Compute hashes and compare them with the pins in this repository.
-4. If the versions are unchanged or still contain no exact REST/SBE identity bridge,
-   record the new audit date/evidence here and stop. Do not begin downstream integration
-   work.
-5. If the specification changed, review every affected schema ID, version, template ID,
-   block length, offset, enum, null, flag, and padding rule. Update checked-in reference
-   resources, manifest, codecs, and golden tests test-first; do not generate or runtime
-   parse XML.
-6. Mark `ORD-07` active and add `OrderStateReconciliationTest` first. Cover exact matches,
-   REST-only orders, SBE-only orders, terminal orders, duplicates, null/invalid identity,
+3. Download the current direct production/testnet SBE XMLs, legacy XML bundle, REST
+   OpenAPI/reference/authentication docs, binary reference/changelog, current order SDK,
+   and legacy SDK. Compute hashes and compare them with the 2026-08-27 pins.
+4. Mark `SPEC-02` active. Review every changed schema ID, version, template ID, block
+   length, offset, enum, null, flag, and padding rule, plus each applicable REST model and
+   authentication delta. Update checked-in references, manifest, hardcoded codecs, and
+   golden tests test-first; do not generate or runtime parse XML. Do not infer unrelated
+   fields or units from the private support example.
+5. Complete `SPEC-02` with focused/full pass evidence, then mark `ORD-07` active. First add
+   RED coverage to `StarbaseOpenOrdersEndpointTest` for the representative decimal string,
+   signed-long boundaries, malformed/overflow/sentinel values, and the stale UUID fixture.
+   Make `StarbaseOpenOrder` expose the exact primitive SBE identity.
+6. Add `OrderStateReconciliationTest` before its implementation. Cover exact matches,
+   REST-only orders, SBE-only orders, terminal orders, duplicates, invalid identity,
    ambiguity rejection, snapshot failure/age, disconnect, and the readiness transition.
-7. Implement only the officially supported exact mapping, run focused and full tests, and
-   record the RED/green evidence here.
-8. Complete `ASM-MD` and `ASM-OE` with deterministic integration tests before implementing
-   consumer adapters. Then work through the remaining integration and validation rows one
-   at a time.
+7. Implement only `Long.parseLong(Starbase REST order_id)` identity semantics; never use
+   tuple/label matching or the legacy currency-prefixed `order_id`. Run focused and full
+   tests and record RED/pass evidence here.
+8. Complete `ASM-MD` and `ASM-OE` with deterministic integration tests before consumer
+   adapters, then work through the remaining integration and validation rows one at a time.
 
 ## Reproducible local verification
 

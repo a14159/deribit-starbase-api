@@ -2,22 +2,32 @@
 
 ## Current upstream review (not adopted)
 
-Reviewed 2026-08-08: `https://statics.deribit.com/files/deribit-sbe-xmls.zip`, SHA-256
-`4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42`.
+Reviewed 2026-08-27. The legacy bundle at
+`https://statics.deribit.com/files/deribit-sbe-xmls.zip` remains SHA-256
+`4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42` and still carries
+the older order-entry v12 XML. The current binary reference instead links the direct
+production order-entry XML at
+`https://docs.deribit.com/specifications/deribit-sbe-xmls/deribit-sbe-order-api.xml`:
+schema 2101/version 15/semantic version 1.5, SHA-256
+`4BA2A80B473AC233B6DDB971158E7A65353B1E287C7B304F14062AC2E5E9106C`. Its v12-v15 delta
+adds schema negotiation in `Logon`/`LogonConf`, session-wide
+`Logon.cancelOnDisconnect` (field 68), `GATEWAY_NOT_ACTIVE` reject reason 6,
+`OrderRejectReason.MMP_MIN_FREEZE_TIME_NOT_ELAPSED` value 30, and
+`MassQuoteRejectReason.MMP_MIN_FREEZE_TIME_NOT_ELAPSED` value 9. The `OrderId` and
+`ClientOrderId` types remain `int64`. The direct market-data XML remains
+schema 2102/version 1/semantic version 1.0, SHA-256
+`6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`.
 
-The bundle now contains order-entry schema 2101/version 12/semantic version 1.4, XML
-SHA-256 `ABB62943716230852B0684A6D3CE9BA1C42E235EFD424E7DED5C3864A0EC19BA`, and
-market-data schema 2102/version 1/semantic version 1.0, XML SHA-256
-`6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`. The order-entry
-delta is schema negotiation in `Logon`/`LogonConf`; the market-data correction adds
-`IndexInfo` (12), changes `InstrumentInfo` (14), and adds `openInterest` to
-`InstrumentRef` (15). It introduces no REST/SBE identity bridge, so it is not adopted
-while `SPEC-01`/`ORD-07` remain paused.
+Formal Deribit clarification dated 2026-08-27 establishes that the Starbase REST snapshot's
+string `order_id` is the base-10 serialization of this same SBE `OrderId`; the public
+OpenAPI's UUID description is a documentation error. `SPEC-01` is therefore resolved. The
+current XMLs and associated REST/source deltas are not yet adopted: `SPEC-02` is the first
+task for the separate restart session, followed by `ORD-07`.
 
 ## Implemented reference pin
 
-The checked-in references below remain the hardcoded-codec baseline until a separately
-selected, test-first source-update task is permitted by the identity gate.
+The checked-in references below remain the hardcoded-codec baseline until `SPEC-02` adopts
+the current sources test-first in the separate restart session.
 
 Reviewed 2026-08-06: `https://statics.deribit.com/files/deribit-sbe-xmls.zip`, SHA-256
 `D36FEDB7AEB2FC5418FBFCFA9FBA80762E865689198B34A64DAEC8DB6D6FB425`.

@@ -50,6 +50,7 @@ public final class OrderEntryConnectionTest {
     assertTrue(dispatched.await(5, TimeUnit.SECONDS));
     awaitFailure(connection);
     assertTrue(connection.isFailed());
+    assertTrue(transport.closedSignal.await(5, TimeUnit.SECONDS));
     assertEquals(1, transport.closeCalls);
     assertThrows(
         IllegalStateException.class,
@@ -64,6 +65,7 @@ public final class OrderEntryConnectionTest {
         new OrderEntryConnection(corrupt, 256, 256, (templateId, buffer, offset) -> {});
     corruptConnection.start();
     awaitFailure(corruptConnection);
+    assertTrue(corrupt.closedSignal.await(5, TimeUnit.SECONDS));
     assertTrue(corruptConnection.failure() != null);
     assertEquals(1, corrupt.closeCalls);
 
@@ -140,6 +142,7 @@ public final class OrderEntryConnectionTest {
 
   private static final class OneFrameTransport implements OrderEntryDuplexTransport {
     private final boolean corrupt;
+    private final CountDownLatch closedSignal = new CountDownLatch(1);
     private int reads;
     private int closeCalls;
 
@@ -171,6 +174,7 @@ public final class OrderEntryConnectionTest {
     @Override
     public void close() {
       closeCalls++;
+      closedSignal.countDown();
     }
   }
 

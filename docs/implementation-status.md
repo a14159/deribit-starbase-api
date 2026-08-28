@@ -9,7 +9,7 @@
 | Active task | None; `CON-01` cannot be activated until a representative consumer repository is explicitly placed in scope |
 | Blocking task | Consumer repository/guidance is absent; the unresolved REST authentication conflict also remains isolated pending live evidence or clarification |
 | Last completed implementation task | `ASM-OE`, redundant public order-entry lifecycle assembly |
-| Local verification | 2026-08-28: focused order-entry assembly/codec/connection/factory tests 48/48; `StarbaseOrderEntryAssemblyTest` 12/12 including zero-byte post-warm-up routing; `mvnw clean test` 339/339 after `SPEC-02`, `ORD-07`, `ASM-MD`, and `ASM-OE`. |
+| Local verification | 2026-08-28: allocation-test maintenance passed `FeedSequenceTrackerTest` and affected `FeedArbitratorTest` in 20/20 fresh forks each, plus the connection-race regression in 10/10 fresh forks; combined focused tests 19/19; final `mvnw clean test` 339/339. Earlier focused order-entry assembly/codec/connection/factory tests remain 48/48 and `StarbaseOrderEntryAssemblyTest` 12/12 including zero-byte post-warm-up routing. |
 | Production readiness | **No** — downstream consumer integration, joint builds, private connectivity/authentication validation, and operations/rollback validation remain |
 | Exact next action | Explicitly place a representative consumer repository in scope; then inspect its guidance and git status, record `CON-01` active, and add the smallest dependency/backend-selection RED test before production changes. |
 
@@ -17,6 +17,38 @@
 and test-first implementation. `ASM-OE` completed on 2026-08-28 after another complete
 official-source revalidation. `SPEC-01` remains resolved by the formal clarification, but
 production readiness remains closed until consumer integration and validation complete.
+
+## 2026-08-28 allocation-test maintenance
+
+`FeedSequenceTrackerTest.testNormalSequenceTrackingAllocatesNothingAfterWarmup` was
+intermittently charging the JDK 25 thread-allocation probe's one-time runtime
+initialization to the tracker. The reported failure observed 312 bytes; local reproduction
+failed 2 of 5 fresh Maven forks with 240 bytes even after increasing tracker warm-up and
+using the same loop call site. A discarded allocation-counter read immediately before the
+baseline isolates that initialization while leaving the measured tracker workload and its
+zero-allocation assertion unchanged. The test now also checks support and explicitly
+enables thread-allocation accounting.
+
+RED/pass evidence:
+
+- RED: the original focused test failed in 2/5 fresh Maven forks with 240 allocated bytes.
+- PASS: the corrected test passed 20/20 fresh Maven forks; the complete
+  `FeedSequenceTrackerTest` passed 7/7.
+- The affected synchronized `FeedArbitratorTest` independently reproduced the same class
+  of warm-up noise with 168 bytes. Probe calibration alone later failed fresh fork 11 with
+  224 bytes, so its warm-up was strengthened from 100,000 to 1,000,000 operations as well
+  as calibrating the probe. The corrected class passed 20/20 fresh Maven forks.
+- The first clean full-suite run exposed an independent test synchronization race:
+  `OrderEntryConnectionTest` observed the volatile failed state before its scripted
+  transport finished closing. The scripted transport now publishes a close latch before
+  the test reads its non-volatile call counter. That test passed 10/10 fresh forks, the
+  combined focused suites passed 19/19, and final `mvnw clean test` passed 339/339 with no
+  failures, errors, or skips.
+
+Only tests and this handoff changed. No production or protocol behavior changed, so the
+complete official-source revalidation recorded below for 2026-08-28 remains current and
+no source conflict was reopened. Production readiness remains closed for the unchanged
+consumer/live-validation prerequisites.
 
 ## `ASM-OE` completion handoff
 

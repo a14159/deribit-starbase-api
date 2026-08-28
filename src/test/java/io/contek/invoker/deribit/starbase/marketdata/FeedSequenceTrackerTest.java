@@ -85,12 +85,18 @@ public final class FeedSequenceTrackerTest {
 
   public void testNormalSequenceTrackingAllocatesNothingAfterWarmup() {
     ThreadMXBean bean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
-    long threadId = Thread.currentThread().threadId();
+    if (!bean.isThreadAllocatedMemorySupported()) {
+      return;
+    }
+    bean.setThreadAllocatedMemoryEnabled(true);
     FeedSequenceTracker tracker = new FeedSequenceTracker();
     for (int iteration = 0; iteration < 100_000; iteration++) {
       exercise(tracker, iteration);
     }
     tracker.reset();
+    long threadId = Thread.currentThread().threadId();
+    // Keep the JDK allocation probe's one-time initialization outside the measured window.
+    bean.getThreadAllocatedBytes(threadId);
     long before = bean.getThreadAllocatedBytes(threadId);
     for (int iteration = 0; iteration < 100_000; iteration++) {
       exercise(tracker, iteration);

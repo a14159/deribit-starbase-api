@@ -115,10 +115,12 @@ public final class FeedArbitratorTest {
     bean.setThreadAllocatedMemoryEnabled(true);
     long threadId = Thread.currentThread().threadId();
     FeedArbitrator arbitrator = new FeedArbitrator();
-    for (int iteration = 0; iteration < 100_000; iteration++) {
+    for (int iteration = 0; iteration < 1_000_000; iteration++) {
       exercise(arbitrator, iteration);
     }
     arbitrator.reset();
+    // Keep the JDK allocation probe's one-time initialization outside the measured window.
+    bean.getThreadAllocatedBytes(threadId);
     long before = bean.getThreadAllocatedBytes(threadId);
     for (int iteration = 0; iteration < 100_000; iteration++) {
       exercise(arbitrator, iteration);

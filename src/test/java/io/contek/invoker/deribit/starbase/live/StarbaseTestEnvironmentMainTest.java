@@ -6,6 +6,8 @@ import static io.contek.invoker.deribit.starbase.testutil.TestAssertions.assertT
 import static io.contek.invoker.deribit.starbase.testutil.TestAssertions.assertTrue;
 
 import io.contek.invoker.deribit.starbase.codec.common.TcpHeaderCodec;
+import io.contek.invoker.deribit.starbase.codec.orderentry.HeartbeatCodec;
+import io.contek.invoker.deribit.starbase.codec.orderentry.LogonConfirmationCodec;
 import io.contek.invoker.deribit.starbase.codec.orderentry.LogonEncoder;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -64,7 +66,7 @@ public final class StarbaseTestEnvironmentMainTest {
     }
   }
 
-  public void testTestnetLogonUsesVersionFourteenInHeaderAndBody() {
+  public void testTestnetLogonUsesVersionFifteenInHeaderAndBody() {
     ByteBuffer buffer = ByteBuffer.allocateDirect(128).order(ByteOrder.LITTLE_ENDIAN);
     int encoded =
         StarbaseTestEnvironmentMain.encodeTestnetLogon(
@@ -77,11 +79,24 @@ public final class StarbaseTestEnvironmentMainTest {
 
     assertEquals(104, encoded);
     assertEquals(LogonEncoder.TEMPLATE_ID, TcpHeaderCodec.messageTypeId(buffer, 0));
-    assertEquals(14, TcpHeaderCodec.version(buffer, 0));
+    assertEquals(15, TcpHeaderCodec.version(buffer, 0));
     assertEquals(
-        14,
+        15,
         Short.toUnsignedInt(
             buffer.getShort(TcpHeaderCodec.ENCODED_LENGTH + 16 + 48 + 1)));
+  }
+
+  public void testLiveResponseValidationSeparatesHeaderStampFromNegotiatedVersion()
+      throws Exception {
+    ByteBuffer confirmation = ByteBuffer.allocateDirect(64).order(ByteOrder.LITTLE_ENDIAN);
+    LogonConfirmationCodec.encode(confirmation, 0, 30, 15, 1, 0, 10);
+    confirmation.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 12);
+    StarbaseTestEnvironmentMain.validateLogonConfirmation(confirmation, 15);
+
+    ByteBuffer heartbeat = ByteBuffer.allocateDirect(48).order(ByteOrder.LITTLE_ENDIAN);
+    HeartbeatCodec.encode(heartbeat, 0, 771, 2, 1, 11);
+    heartbeat.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 0);
+    assertTrue(StarbaseTestEnvironmentMain.isCorrelatedHeartbeat(heartbeat, 771));
   }
 
   private static Map<String, String> requiredEnvironment() {

@@ -103,7 +103,7 @@ public final class AmendOrderCodecsTest {
 
   public void testRejectPinsReasonAndVariableAsciiDetails() {
     ByteBuffer frame = ByteBuffer.allocateDirect(128).order(ByteOrder.LITTLE_ENDIAN);
-    TcpHeaderCodec.encode(frame, 0, 0, 85, 212, 11, 10L, 9L, 100L);
+    TcpHeaderCodec.encode(frame, 0, 0, 85, 212, 15, 10L, 9L, 100L);
     int body = 32;
     for (int index = 0; index < 6; index++) {
       frame.putLong(body + index * 8, 4001L + index);

@@ -49,10 +49,6 @@ public final class TemplateDispatchTest {
     TcpHeaderCodec.encode(order, 0, 0, 32, 100, 15, 1, 0, 2);
     assertEquals(100, OrderEntryTemplateDispatch.validateFrame(order, 0));
 
-    order.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 10);
-    assertThrows(
-        StarbaseProtocolException.class,
-        () -> OrderEntryTemplateDispatch.validateFrame(order, 0));
     order.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 16);
     assertThrows(
         StarbaseProtocolException.class,
@@ -76,6 +72,38 @@ public final class TemplateDispatchTest {
     assertThrows(
         StarbaseProtocolException.class,
         () -> MarketDataTemplateDispatch.validateMessage(market, 0));
+  }
+
+  public void testOrderEntryFramesUseTemplateSpecificVersionBounds() {
+    int[] templateIds = {
+      1, 2, 4, 5, 10, 11, 20, 21, 30,
+      100, 110, 120, 125, 130, 140, 145, 155, 156,
+      200, 202, 210, 212, 220, 222, 230, 232, 240, 242,
+      280, 281, 282, 283, 300, 310, 312, 314, 320, 322, 324, 326
+    };
+    int[] minimumVersions = {
+      13, 12, 0, 0, 0, 0, 0, 0, 14,
+      10, 0, 0, 3, 10, 0, 0, 10, 10,
+      5, 14, 5, 14, 0, 9, 14, 14, 0, 0,
+      10, 10, 10, 10, 0, 5, 8, 5, 0, 0, 0, 0
+    };
+
+    for (int index = 0; index < templateIds.length; index++) {
+      int templateId = templateIds[index];
+      int minimumVersion = minimumVersions[index];
+      ByteBuffer currentLayout = orderFrame(templateId, minimumVersion);
+      assertEquals(templateId, OrderEntryTemplateDispatch.validateFrame(currentLayout, 0));
+      if (minimumVersion > 0) {
+        currentLayout.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) (minimumVersion - 1));
+        assertThrows(
+            StarbaseProtocolException.class,
+            () -> OrderEntryTemplateDispatch.validateFrame(currentLayout, 0));
+      }
+      currentLayout.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 16);
+      assertThrows(
+          StarbaseProtocolException.class,
+          () -> OrderEntryTemplateDispatch.validateFrame(currentLayout, 0));
+    }
   }
 
   public void testStateChangingClassificationIsExplicitAndConservative() {
@@ -118,6 +146,12 @@ public final class TemplateDispatchTest {
     buffer.putShort(MarketDataMessageHeaderCodec.MESSAGE_LENGTH_OFFSET, (short) length);
     buffer.putShort(MarketDataMessageHeaderCodec.TEMPLATE_ID_OFFSET, (short) templateId);
     buffer.putShort(MarketDataMessageHeaderCodec.VERSION_OFFSET, (short) version);
+    return buffer;
+  }
+
+  private static ByteBuffer orderFrame(int templateId, int version) {
+    ByteBuffer buffer = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN);
+    TcpHeaderCodec.encode(buffer, 0, 0, 32, templateId, version, 1, 0, 2);
     return buffer;
   }
 

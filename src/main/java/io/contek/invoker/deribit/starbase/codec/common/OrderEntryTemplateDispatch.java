@@ -7,16 +7,37 @@ import java.nio.ByteBuffer;
 /** Allocation-free validation and dispatch keys for pinned order-entry schema 2101. */
 public final class OrderEntryTemplateDispatch {
 
-  public static final int MINIMUM_COMPATIBLE_VERSION = 11;
-
   public static int validateFrame(ByteBuffer buffer, int headerOffset) {
     TcpHeaderCodec.validateFrame(buffer, headerOffset);
+    int templateId = requireKnown(TcpHeaderCodec.messageTypeId(buffer, headerOffset));
     int version = TcpHeaderCodec.version(buffer, headerOffset);
-    if (version < MINIMUM_COMPATIBLE_VERSION
+    if (version < minimumCompatibleVersion(templateId)
         || version > ProtocolSchemas.ORDER_ENTRY.version()) {
-      throw new StarbaseProtocolException("unsupported order-entry schema version: " + version);
+      throw new StarbaseProtocolException(
+          "unsupported order-entry schema version " + version + " for template " + templateId);
     }
-    return requireKnown(TcpHeaderCodec.messageTypeId(buffer, headerOffset));
+    return templateId;
+  }
+
+  /**
+   * Returns the first schema version compatible with the current hardcoded message layout and its
+   * referenced enum/set definitions. Deribit stamps each server message with its own last-change
+   * version, capped by the negotiated session version, rather than stamping every message with the
+   * session ceiling.
+   */
+  public static int minimumCompatibleVersion(int templateId) {
+    requireKnown(templateId);
+    return switch (templateId) {
+      case 1 -> 13;
+      case 2 -> 12;
+      case 30, 202, 212, 230, 232 -> 14;
+      case 100, 130, 155, 156, 280, 281, 282, 283 -> 10;
+      case 125 -> 3;
+      case 200, 210, 310, 314 -> 5;
+      case 222 -> 9;
+      case 312 -> 8;
+      default -> 0;
+    };
   }
 
   public static int requireKnown(int templateId) {

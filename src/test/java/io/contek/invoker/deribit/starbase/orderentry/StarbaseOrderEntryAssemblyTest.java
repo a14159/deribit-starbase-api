@@ -656,12 +656,14 @@ public final class StarbaseOrderEntryAssemblyTest {
   private static ByteBuffer logonConfirmation(long sequence, long acknowledgment) {
     ByteBuffer frame = frame(40);
     LogonConfirmationCodec.encode(frame, 0, 1, 15, sequence, acknowledgment, 1);
+    frame.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 12);
     return frame;
   }
 
   private static ByteBuffer heartbeat(long sequence, long acknowledgment, boolean resend) {
     ByteBuffer frame = frame(40);
     HeartbeatCodec.encode(frame, 0, 0, sequence, acknowledgment, 1);
+    frame.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 0);
     if (resend) {
       frame.put(TcpHeaderCodec.FLAGS_OFFSET, (byte) TcpHeaderCodec.FLAG_RESEND);
     }
@@ -705,7 +707,7 @@ public final class StarbaseOrderEntryAssemblyTest {
     int messageLength = 134 + fillCount * 25;
     ByteBuffer frame = frame((messageLength + 7) & ~7);
     TcpHeaderCodec.encode(
-        frame, 0, 0, messageLength, 200, 11, sequence, acknowledgment, 12_345);
+        frame, 0, 0, messageLength, 200, 5, sequence, acknowledgment, 12_345);
     int body = TcpHeaderCodec.ENCODED_LENGTH;
     frame.putLong(body, 12_345);
     frame.putLong(body + 8, 7_001);
@@ -746,7 +748,7 @@ public final class StarbaseOrderEntryAssemblyTest {
       long instrumentId,
       long quantity) {
     ByteBuffer frame = frame(128);
-    TcpHeaderCodec.encode(frame, 0, 0, 128, 312, 11, sequence, acknowledgment, 17_000);
+    TcpHeaderCodec.encode(frame, 0, 0, 128, 312, 8, sequence, acknowledgment, 17_000);
     int body = TcpHeaderCodec.ENCODED_LENGTH;
     frame.putLong(body, 17_000);
     frame.putLong(body + 8, 7_500);
@@ -778,7 +780,7 @@ public final class StarbaseOrderEntryAssemblyTest {
       long instrumentId,
       long totalFilled) {
     ByteBuffer frame = frame(88);
-    TcpHeaderCodec.encode(frame, 0, 0, 88, 310, 11, sequence, acknowledgment, 18_000);
+    TcpHeaderCodec.encode(frame, 0, 0, 88, 310, 5, sequence, acknowledgment, 18_000);
     int body = TcpHeaderCodec.ENCODED_LENGTH;
     frame.putLong(body, 18_000);
     frame.putLong(body + 8, 7_600);
@@ -806,7 +808,7 @@ public final class StarbaseOrderEntryAssemblyTest {
       long fillQuantity,
       long totalFilled) {
     ByteBuffer frame = frame(120);
-    TcpHeaderCodec.encode(frame, 0, 0, 116, 300, 11, sequence, acknowledgment, 13_000);
+    TcpHeaderCodec.encode(frame, 0, 0, 116, 300, 0, sequence, acknowledgment, 13_000);
     int body = TcpHeaderCodec.ENCODED_LENGTH;
     frame.putLong(body, 13_000);
     frame.putLong(body + 8, 7_100);
@@ -845,7 +847,7 @@ public final class StarbaseOrderEntryAssemblyTest {
     int messageLength = 133 + fillCount * 25;
     ByteBuffer frame = frame((messageLength + 7) & ~7);
     TcpHeaderCodec.encode(
-        frame, 0, 0, messageLength, 210, 11, sequence, acknowledgment, 14_000);
+        frame, 0, 0, messageLength, 210, 5, sequence, acknowledgment, 14_000);
     int body = TcpHeaderCodec.ENCODED_LENGTH;
     frame.putLong(body, 14_000);
     frame.putLong(body + 8, 7_200);
@@ -884,7 +886,7 @@ public final class StarbaseOrderEntryAssemblyTest {
       long orderId,
       long instrumentId) {
     ByteBuffer frame = frame(88);
-    TcpHeaderCodec.encode(frame, 0, 0, 88, 220, 11, sequence, acknowledgment, 15_000);
+    TcpHeaderCodec.encode(frame, 0, 0, 88, 220, 0, sequence, acknowledgment, 15_000);
     int body = TcpHeaderCodec.ENCODED_LENGTH;
     frame.putLong(body, 15_000);
     frame.putLong(body + 8, 7_300);
@@ -899,7 +901,7 @@ public final class StarbaseOrderEntryAssemblyTest {
   private static ByteBuffer massCancelResponse(
       long sequence, long acknowledgment, long correlationId, int count) {
     ByteBuffer frame = frame(72);
-    TcpHeaderCodec.encode(frame, 0, 0, 68, 240, 11, sequence, acknowledgment, 16_000);
+    TcpHeaderCodec.encode(frame, 0, 0, 68, 240, 0, sequence, acknowledgment, 16_000);
     int body = TcpHeaderCodec.ENCODED_LENGTH;
     frame.putLong(body, 16_000);
     frame.putLong(body + 8, 7_400);
@@ -956,7 +958,9 @@ public final class StarbaseOrderEntryAssemblyTest {
       long instrumentId,
       int reason) {
     ByteBuffer frame = frame(88);
-    TcpHeaderCodec.encode(frame, 0, 0, 82, templateId, 11, sequence, acknowledgment, 19_000);
+    int version = templateId == 222 ? 9 : 15;
+    TcpHeaderCodec.encode(
+        frame, 0, 0, 82, templateId, version, sequence, acknowledgment, 19_000);
     int body = TcpHeaderCodec.ENCODED_LENGTH;
     frame.putLong(body, 19_000);
     frame.putLong(body + 8, 7_700);
@@ -973,7 +977,7 @@ public final class StarbaseOrderEntryAssemblyTest {
   private static ByteBuffer massCancelReject(
       long sequence, long acknowledgment, long correlationId, int reason) {
     ByteBuffer frame = frame(64);
-    TcpHeaderCodec.encode(frame, 0, 0, 58, 242, 11, sequence, acknowledgment, 20_000);
+    TcpHeaderCodec.encode(frame, 0, 0, 58, 242, 0, sequence, acknowledgment, 20_000);
     int body = TcpHeaderCodec.ENCODED_LENGTH;
     frame.putLong(body, 20_000);
     frame.putLong(body + 8, 7_800);

@@ -2,7 +2,8 @@
 
 ## Current upstream review and adoption
 
-Reviewed 2026-08-27 and revalidated unchanged on 2026-08-28. The legacy bundle at
+Reviewed 2026-08-27, revalidated unchanged on 2026-08-28, and audited again on 2026-09-03.
+The production schema pins remain unchanged. The legacy bundle at
 `https://statics.deribit.com/files/deribit-sbe-xmls.zip` remains SHA-256
 `4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42` and still carries
 the older order-entry v12 XML. The current binary reference instead links the direct
@@ -14,9 +15,18 @@ adds schema negotiation in `Logon`/`LogonConf`, session-wide
 `Logon.cancelOnDisconnect` (field 68), `GATEWAY_NOT_ACTIVE` reject reason 6,
 `OrderRejectReason.MMP_MIN_FREEZE_TIME_NOT_ELAPSED` value 30, and
 `MassQuoteRejectReason.MMP_MIN_FREEZE_TIME_NOT_ELAPSED` value 9. The `OrderId` and
-`ClientOrderId` types remain `int64`. The direct market-data XML remains
+`ClientOrderId` types remain `int64`. As of 2026-09-03, the direct testnet order-entry XML
+has advanced from v14 to a byte-identical copy of this production-v15 XML and hash. The
+direct market-data XML remains
 schema 2102/version 1/semantic version 1.0, SHA-256
 `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`.
+
+The current Binary API Reference also clarifies that an inbound server message's header
+`version` is the newest schema version at which that individual message changed, capped at
+the negotiated session version; it is not necessarily the negotiated v15 ceiling. The
+hardcoded layouts remain pinned correctly, and completed `SPEC-03` now applies
+schema-derived per-message lower bounds plus the pinned-v15 upper bound before exact
+layout/body/group validation.
 
 Formal Deribit clarification dated 2026-08-27 establishes that the Starbase REST snapshot's
 string `order_id` is the base-10 serialization of this same SBE `OrderId`; the public
@@ -70,10 +80,12 @@ Common framing/dispatch tests: `TcpHeaderCodecTest`, `UdpPacketHeaderCodecTest`,
 ### Order-entry templates
 
 All listed layouts are unchanged from the originally implemented subset except `Logon`
-(68-byte body) and `LogonConfirmation` (6-byte body). The dispatcher accepts the audited
-compatible header range v11-v15 and rejects later versions. Encoders stamp production v15,
-and the assembled lifecycle requires its `LogonConf` to echo v15. Testnet v14 remains an
-audited upstream input, not a silently accepted production-session downgrade.
+(68-byte body) and `LogonConfirmation` (6-byte body). Encoders stamp production v15, and
+the assembled lifecycle requires `LogonConf.schemaVersion` to echo negotiated v15. The
+dispatcher accepts each template's schema-derived compatible version floor through the
+pinned v15 ceiling, while retaining exact template lengths and bounds checks. In
+particular, current `LogonConf`, `Heartbeat`, and `OrderPlaced` layouts accept their
+documented header stamps 12, 0, and 8. Testnet now uses the same v15 XML as production.
 
 | Template ID | Message | Hardcoded codec(s) | Golden/bounds test |
 | ---: | --- | --- | --- |

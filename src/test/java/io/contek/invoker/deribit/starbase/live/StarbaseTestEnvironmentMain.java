@@ -49,14 +49,13 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>This class deliberately lives in test sources. Credentials are accepted only from the
  * process environment or an interactive password prompt, are never printed, and are erased from
- * mutable local copies. The testnet SBE v14 probe is bounded and sends no order messages.
+ * mutable local copies. The testnet SBE v15 probe is bounded and sends no order messages.
  */
 public final class StarbaseTestEnvironmentMain {
 
   static final String STATE_CHANGE_ACKNOWLEDGEMENT =
       "I_ACCEPT_THAT_TEST_ORDERS_CAN_EXECUTE";
-  private static final int TESTNET_SCHEMA_VERSION = 14;
-  private static final int PRODUCTION_SCHEMA_VERSION = 15;
+  private static final int TESTNET_SCHEMA_VERSION = 15;
   private static final int MAXIMUM_FRAME_BYTES = 65_536;
 
   public static void main(String[] arguments) {
@@ -102,26 +101,31 @@ public final class StarbaseTestEnvironmentMain {
             sequence,
             lastProcessedSequence,
             sendTimeNanos);
-    buffer.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) TESTNET_SCHEMA_VERSION);
     return encoded;
   }
 
-  private static int encodeProductionLogon(
-      ByteBuffer buffer,
-      char[] clientId,
-      char[] secret,
-      long sequence,
-      long lastProcessedSequence,
-      long sendTimeNanos) {
-    return LogonEncoder.encode(
-        buffer,
-        0,
-        clientId,
-        secret,
-        true,
-        sequence,
-        lastProcessedSequence,
-        sendTimeNanos);
+  static void validateLogonConfirmation(ByteBuffer response, int requestedSchemaVersion)
+      throws IOException {
+    LogonConfirmationCodec.validate(response, 0);
+    int acceptedVersion = LogonConfirmationCodec.schemaVersion(response, 0);
+    if (acceptedVersion != requestedSchemaVersion) {
+      throw new IOException(
+          "gateway confirmed schema "
+              + acceptedVersion
+              + " after requesting "
+              + requestedSchemaVersion);
+    }
+  }
+
+  static boolean isCorrelatedHeartbeat(ByteBuffer response, long correlationId)
+      throws IOException {
+    int templateId = TcpHeaderCodec.messageTypeId(response, 0);
+    if (templateId != HeartbeatCodec.TEMPLATE_ID) {
+      throw new IOException(
+          "expected heartbeat after TestRequest but received template " + templateId);
+    }
+    HeartbeatCodec.validate(response, 0);
+    return HeartbeatCodec.correlationId(response, 0) == correlationId;
   }
 
   private static boolean hasArgument(String[] arguments, String expected) {
@@ -191,9 +195,9 @@ public final class StarbaseTestEnvironmentMain {
           STARBASE_ALLOW_STATE_CHANGES=true
           STARBASE_STATE_CHANGE_ACKNOWLEDGEMENT=I_ACCEPT_THAT_TEST_ORDERS_CAN_EXECUTE
 
-        The current official test environment uses SBE v14 while the public production
-        assembly is pinned to v15. This runner never bypasses that guard and therefore does
-        not submit an order while that documented mismatch remains.
+        The current official test environment and production assembly both use SBE v15.
+        This runner remains non-trading: it does not submit an order even when the explicit
+        state-change acknowledgement and inputs are supplied.
 
         Use --live-only to skip the Maven regression suite. Use --help to print this text.
         """);
@@ -586,19 +590,8 @@ public final class StarbaseTestEnvironmentMain {
 
       RestApis restApis = runRestChecks();
       try {
-        ProbeOutcome v14A =
-            runSbeProbe(
-                "sbe-a-v14-logon",
-                configuration.sbePortA,
-                TESTNET_SCHEMA_VERSION,
-                false);
-        ProbeOutcome v14B =
-            runSbeProbe(
-                "sbe-b-v14-logon",
-                configuration.sbePortB,
-                TESTNET_SCHEMA_VERSION,
-                false);
-        runProductionCompatibilityProbe(v14A, v14B);
+        runSbeProbe("sbe-a-v15-logon", configuration.sbePortA);
+        runSbeProbe("sbe-b-v15-logon", configuration.sbePortB);
         runMarketDataCheck();
         reportStateChangingPhase();
       } finally {
@@ -771,8 +764,7 @@ public final class StarbaseTestEnvironmentMain {
       }
     }
 
-    private ProbeOutcome runSbeProbe(
-        String name, int port, int schemaVersion, boolean rejectionExpected) {
+    private void runSbeProbe(String name, int port) {
       char[] clientId = configuration.copyClientId();
       char[] secret = configuration.copySecret();
       ByteBuffer request = ByteBuffer.allocateDirect(128).order(ByteOrder.LITTLE_ENDIAN);
@@ -785,10 +777,7 @@ public final class StarbaseTestEnvironmentMain {
         socket.setSoTimeout(timeoutMillis(configuration.responseTimeout));
 
         long epochNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
-        int length =
-            schemaVersion == TESTNET_SCHEMA_VERSION
-                ? encodeTestnetLogon(request, clientId, secret, 1L, 0L, epochNanos)
-                : encodeProductionLogon(request, clientId, secret, 1L, 0L, epochNanos);
+        int length = encodeTestnetLogon(request, clientId, secret, 1L, 0L, epochNanos);
         outbound = new byte[length];
         request.get(0, outbound, 0, length);
         OutputStream output = socket.getOutputStream();
@@ -799,57 +788,29 @@ public final class StarbaseTestEnvironmentMain {
         int templateId = TcpHeaderCodec.messageTypeId(response, 0);
         int headerVersion = TcpHeaderCodec.version(response, 0);
         if (templateId == LogonConfirmationCodec.TEMPLATE_ID) {
-          LogonConfirmationCodec.validate(response, 0);
+          validateLogonConfirmation(response, TESTNET_SCHEMA_VERSION);
           int acceptedVersion = LogonConfirmationCodec.schemaVersion(response, 0);
           int heartbeat = LogonConfirmationCodec.heartbeatIntervalSeconds(response, 0);
-          if (acceptedVersion != schemaVersion || headerVersion != schemaVersion) {
-            throw new IOException(
-                "gateway confirmed version "
-                    + acceptedVersion
-                    + " with header version "
-                    + headerVersion
-                    + " after requesting "
-                    + schemaVersion);
-          }
-          if (!rejectionExpected) {
-            verifyHeartbeatRoundTrip(
-                socket, schemaVersion, TcpHeaderCodec.sequenceNumber(response, 0));
-          }
-          if (rejectionExpected) {
-            reporter.fail(
-                name,
-                "gateway unexpectedly authenticated schema="
-                    + acceptedVersion
-                    + ", heartbeatSeconds="
-                    + heartbeat);
-          } else {
-            reporter.pass(
-                name,
-                "authenticated; schema="
-                    + acceptedVersion
-                    + ", heartbeatSeconds="
-                    + heartbeat
-                    + ", heartbeatRoundTrip=true");
-          }
-          return ProbeOutcome.confirmed();
+          verifyHeartbeatRoundTrip(socket, TcpHeaderCodec.sequenceNumber(response, 0));
+          reporter.pass(
+              name,
+              "authenticated; schema="
+                  + acceptedVersion
+                  + ", logonHeaderVersion="
+                  + headerVersion
+                  + ", heartbeatSeconds="
+                  + heartbeat
+                  + ", heartbeatRoundTrip=true");
+          return;
         }
         if (templateId == SessionRejectDecoder.TEMPLATE_ID) {
           SessionRejectDecoder.validate(response, 0);
           int reason = SessionRejectDecoder.reason(response, 0);
           int detailsLength = SessionRejectDecoder.detailsLength(response, 0);
-          if (rejectionExpected) {
-            reporter.pass(
-                name,
-                "incompatible schema rejected; reason="
-                    + reason
-                    + ", detailBytes="
-                    + detailsLength);
-          } else {
-            reporter.fail(
-                name,
-                "session reject reason=" + reason + ", detailBytes=" + detailsLength);
-          }
-          return ProbeOutcome.notConfirmed();
+          reporter.fail(
+              name,
+              "session reject reason=" + reason + ", detailBytes=" + detailsLength);
+          return;
         }
         reporter.fail(
             name,
@@ -857,10 +818,8 @@ public final class StarbaseTestEnvironmentMain {
                 + templateId
                 + ", headerVersion="
                 + headerVersion);
-        return ProbeOutcome.notConfirmed();
       } catch (Throwable failure) {
         reporter.fail(name, failure);
-        return ProbeOutcome.notConfirmed();
       } finally {
         Arrays.fill(clientId, '\0');
         Arrays.fill(secret, '\0');
@@ -874,8 +833,8 @@ public final class StarbaseTestEnvironmentMain {
       }
     }
 
-    private void verifyHeartbeatRoundTrip(
-        Socket socket, int schemaVersion, long lastProcessedSequence) throws IOException {
+    private void verifyHeartbeatRoundTrip(Socket socket, long lastProcessedSequence)
+        throws IOException {
       final long correlationId = 7_710_014L;
       ByteBuffer request = ByteBuffer.allocateDirect(64).order(ByteOrder.LITTLE_ENDIAN);
       byte[] outbound = null;
@@ -888,7 +847,6 @@ public final class StarbaseTestEnvironmentMain {
                 2L,
                 lastProcessedSequence,
                 TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis()));
-        request.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) schemaVersion);
         outbound = new byte[length];
         request.get(0, outbound, 0, length);
         OutputStream output = socket.getOutputStream();
@@ -898,18 +856,7 @@ public final class StarbaseTestEnvironmentMain {
         for (int observed = 0; observed < 8; observed++) {
           ByteBuffer response = readFrame(socket.getInputStream());
           try {
-            int responseVersion = TcpHeaderCodec.version(response, 0);
-            if (responseVersion != schemaVersion) {
-              throw new IOException(
-                  "heartbeat response used header version " + responseVersion);
-            }
-            int templateId = TcpHeaderCodec.messageTypeId(response, 0);
-            if (templateId != HeartbeatCodec.TEMPLATE_ID) {
-              throw new IOException(
-                  "expected heartbeat after TestRequest but received template " + templateId);
-            }
-            HeartbeatCodec.validate(response, 0);
-            if (HeartbeatCodec.correlationId(response, 0) == correlationId) {
+            if (isCorrelatedHeartbeat(response, correlationId)) {
               return;
             }
           } finally {
@@ -922,38 +869,6 @@ public final class StarbaseTestEnvironmentMain {
         if (outbound != null) {
           Arrays.fill(outbound, (byte) 0);
         }
-      }
-    }
-
-    private void runProductionCompatibilityProbe(ProbeOutcome v14A, ProbeOutcome v14B) {
-      if (!v14A.confirmed || !v14B.confirmed) {
-        reporter.blocked(
-            "public-v15-order-entry-assembly",
-            "v14 authentication did not pass on both sides; no v15 probe or order was sent");
-        return;
-      }
-      ProbeOutcome v15A =
-          runSbeProbe(
-              "sbe-a-v15-compatibility",
-              configuration.sbePortA,
-              PRODUCTION_SCHEMA_VERSION,
-              true);
-      ProbeOutcome v15B =
-          runSbeProbe(
-              "sbe-b-v15-compatibility",
-              configuration.sbePortB,
-              PRODUCTION_SCHEMA_VERSION,
-              true);
-      if (v15A.confirmed || v15B.confirmed) {
-        reporter.fail(
-            "public-v15-order-entry-assembly",
-            "test gateway accepted v15 contrary to the revalidated official testnet v14 "
-                + "schema; revalidate before assembling a session");
-      } else {
-        reporter.blocked(
-            "public-v15-order-entry-assembly",
-            "testnet v14/production assembly v15 mismatch remains; bounded probes did not "
-                + "bypass the guard");
       }
     }
 
@@ -1036,8 +951,8 @@ public final class StarbaseTestEnvironmentMain {
       }
       reporter.blocked(
           "order-new-amend-cancel",
-          "explicit acknowledgement was accepted, but the official testnet v14/public "
-              + "assembly v15 gate forbids submission");
+          "explicit acknowledgement was accepted, but this bounded non-trading runner does not "
+              + "submit orders");
     }
 
     private ByteBuffer readFrame(InputStream input) throws IOException {
@@ -1098,23 +1013,6 @@ public final class StarbaseTestEnvironmentMain {
       } finally {
         sideB.close();
       }
-    }
-  }
-
-  private static final class ProbeOutcome {
-
-    private final boolean confirmed;
-
-    private ProbeOutcome(boolean confirmed) {
-      this.confirmed = confirmed;
-    }
-
-    private static ProbeOutcome confirmed() {
-      return new ProbeOutcome(true);
-    }
-
-    private static ProbeOutcome notConfirmed() {
-      return new ProbeOutcome(false);
     }
   }
 

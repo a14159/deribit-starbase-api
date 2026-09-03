@@ -4,21 +4,96 @@
 
 | Field | Value |
 | --- | --- |
-| Overall state | **WAITING — the EC2 validation runner is complete and awaits execution from the user's private-network instance** |
+| Overall state | **WAITING — `SPEC-03` complete; private `VAL-EC2` evidence is next** |
 | Gate resolution date | 2026-08-27 |
-| Active task | None; `VAL-EC2` is implemented locally and cannot collect private evidence until the user runs it on EC2 |
-| Blocking task | Live output from the user's EC2 private-network instance is pending; consumer repository/guidance is absent; the unresolved REST authentication conflict remains isolated pending that evidence or clarification |
-| Last completed implementation task | `ASM-OE`, redundant public order-entry lifecycle assembly |
-| Local verification | 2026-08-28: fresh upstream audit matched all 18 recorded hashes; `StarbaseTestEnvironmentMainTest` passed 3/3 and clean `mvnw clean test` passed 342/342. A credential-safe loopback failure-path run completed every applicable phase, redacted all configured sensitive values, summarized 11 expected connection failures, and exited nonzero. No live private endpoint or credential was used. |
+| Active task | None; `SPEC-03` completed locally after a repeated 18/18 source-hash match |
+| Blocking task | `VAL-EC2` requires the assigned private-network environment and credentials; consumer repository/guidance is absent; the REST authentication conflict remains isolated |
+| Last completed implementation task | `SPEC-03`, per-message order-entry version bounds and testnet-v15 live-runner maintenance |
+| Local verification | 2026-09-03: initial focused RED failed 3/15 and the negotiated-ceiling edge RED failed 1/6 as intended; affected order-entry/live tests passed 61/61; pinned review-date RED failed 1/1 then passed 1/1; final clean `mvnw clean test` passed 346/346; allocation-containing dispatcher suites passed 12/12 with no skips and zero-byte assertions intact. |
 | Production readiness | **No** — downstream consumer integration, joint builds, private connectivity/authentication validation, and operations/rollback validation remain |
-| Exact next action | On the EC2 instance, set the assigned PrivateLink host and client ID, configure the optional multicast interface when available, run `./mvnw test-compile`, then launch `StarbaseTestEnvironmentMain` from `target/test-classes:target/classes` and return the complete `STARBASE_TEST` output. Enter the secret at the console prompt or supply it process-locally, then clear it. |
+| Exact next action | On the assigned private-network instance, revalidate the official sources, leave state changes disabled, run the credential-safe `StarbaseTestEnvironmentMain`, and record its complete non-trading `STARBASE_TEST` output. |
 
 `SPEC-02`, `ORD-07`, and `ASM-MD` completed on 2026-08-27 after the required restart audit
 and test-first implementation. `ASM-OE` completed on 2026-08-28 after another complete
 official-source revalidation. `SPEC-01` remains resolved by the formal clarification, but
 production readiness remains closed until consumer integration and validation complete.
 
+## 2026-09-03 latest-source audit and `SPEC-03` completion
+
+The required restart audit downloaded the current production/testnet OE and MD XMLs,
+legacy XML bundle, REST OpenAPI, all five endpoint references, REST authentication guide,
+binary reference, changelog, current OE and MD SDKs, legacy SDK, and official PCAP. Of the
+18 recorded inputs, 15 hashes are unchanged and three changed:
+
+- testnet OE XML is now schema 2101/version 15/semantic version 1.5, SHA-256
+  `4BA2A80B473AC233B6DDB971158E7A65353B1E287C7B304F14062AC2E5E9106C`, byte-identical
+  to the unchanged production XML; it previously pinned v14 hash
+  `3F375CA809C437DB96369DF1751C702FB00E4590156C8F088E7FC2957C9020EA`;
+- Binary API Reference Markdown is now SHA-256
+  `E6DAA603E7E7BFD6A2BF5C5A8AD703C173668B0A37CAD1704FC44C4C7177128D`; and
+- Starbase changelog Markdown is now SHA-256
+  `26C77E65A3A145D276D31480B618484B1A00FFBF701D2C0F77F60140AD8DB556`.
+
+The latest dated changelog entry is still 2026-08-25. Production OE remains v15 and both
+production/testnet MD XMLs remain byte-identical v1, so no production field, offset,
+template, enum, or checked-in schema-resource change is indicated. The order SDK remains
+v14, the MD SDK remains v1, the REST inputs are unchanged, and the Basic-versus-Bearer
+authentication conflict remains unresolved.
+
+The changed Binary API Reference does make an existing behavior explicit: the negotiated
+`Logon.schemaVersion`/`LogonConf.schemaVersion` is the session ceiling, while each server
+message's TCP header `version` is the newest schema version at which that message changed,
+capped at the ceiling. It gives the concrete example that after negotiating v15,
+`LogonConf` has header version 12. At audit time, production code globally rejected
+order-entry header versions below 11, although implemented current-layout messages such as
+`OrderPlaced` last changed at version 8. The live runner additionally required response
+header versions to equal the negotiated schema and still treated v15 testnet as a negative
+compatibility probe. Those assumptions could reject valid server traffic and make the
+pending EC2 evidence misleading.
+
+Completed `SPEC-03` scope and acceptance evidence:
+
+1. Re-downloaded all 18 inputs at task start; every current hash matched the recorded
+   2026-09-03 pin, so there was no further source delta.
+2. Added the smallest deterministic failing tests for a v15-negotiated session receiving
+   current layouts with their valid earlier per-message stamps, including `LogonConf`
+   header v12 and `OrderPlaced` header v8. Covered future-above-ceiling versions,
+   incompatible old layouts, corrupt lengths, and unknown state-changing templates as
+   fail-closed.
+3. Replaced the global v11-v15 inbound assumption with a bounds-checked per-message policy
+   derived from the unchanged authoritative v15 XML and current reference. Retained exact
+   layout/body/group validation, rejection above the pinned ceiling, and outbound v15
+   stamping.
+4. Updated `StarbaseTestEnvironmentMain` and its tests to negotiate testnet v15 directly
+   and validate `LogonConf.schemaVersion == 15` independently of its header stamp. Removed
+   the obsolete v14/v15 compatibility branch and validated heartbeat/test-request replies
+   by their documented per-message stamps rather than equality with the session ceiling.
+5. Focused RED ran 15 tests and produced the intended three failures: an old Logon stamp
+   was accepted, Heartbeat v0 was rejected, and the runner encoded testnet v14. After the
+   correction, the affected codec, dispatcher, authentication, connection, assembly, and
+   live-runner set passed 61/61. The schema review-date test separately failed 1/1 before
+   the pin advanced to 2026-09-03 and then passed 1/1. A further 1/6 RED pinned the rule
+   that v15 enum-only changes accept header v14 when capped by a negotiated-v14 session;
+   its focused correction passed.
+6. Clean `mvnw clean test` passed 346/346. The allocation-containing template-dispatch and
+   message-dispatch suites passed 12/12 with no skips; their post-warm-up checks still
+   assert zero bytes allocated. `.gitattributes` now forces LF for pinned schema XMLs so
+   their authoritative hashes survive Windows checkouts and clean resource copies. One
+   intervening run observed a transient 56-byte result in the unchanged market-data
+   allocation test; an isolated retry, three additional full-class repetitions, and the
+   final clean suite all passed, so no market-data code was changed.
+
+Changed files are `.gitattributes`, `OrderEntryTemplateDispatch`, `ProtocolSchemas`, their
+focused tests, order-entry reject/dispatcher/assembly fixtures, the test-scope live runner
+and its tests, and this canonical documentation. No checked-in schema content, dependency,
+endpoint, credential, capture, order-submission path, or unrelated protocol behavior
+changed. `VAL-EC2` is restored as the exact next action; no private live evidence or
+production-readiness claim is made.
+
 ## 2026-08-28 `VAL-EC2` runner handoff
+
+This is the historical pre-`SPEC-03` runner record. The 2026-09-03 completion above
+supersedes its v14-specific behavior and test evidence.
 
 The test-scope `StarbaseTestEnvironmentMain` now gives the user's EC2 instance one bounded
 entry point for the complete local Maven suite followed by private-environment validation.
@@ -521,11 +596,12 @@ Green component/replay tests do **not** make the public APIs a complete client:
 | --- | --- | --- | --- |
 | `SPEC-01` | DONE | Formal clarification: Starbase REST `order_id` is the decimal string serialization of SBE `orderId` | Deribit support response dated 2026-08-27 |
 | `SPEC-02` | DONE | Adopted applicable production OE v12-v15, corrected MD v1, and unconflicted REST model deltas; unresolved REST authentication conflict isolated with readiness closed | Current official sources; `SPEC-01` resolved |
+| `SPEC-03` | DONE | Adopted testnet OE v15 and the documented distinction between negotiated session ceiling and per-message TCP header version; corrected dispatcher and live-runner assumptions test-first | 2026-09-03 official-source audit; unchanged production OE v15 layout |
 | `ORD-07` | DONE | Parse the clarified exact ID and reconcile missing, extra, matching, duplicate, invalid, and ambiguous REST/SBE orders before restoring readiness | `SPEC-02` |
 | `ASM-MD` | DONE | Compose both A/B feed instances, arbitration, retransmit, snapshot fallback, atomic books, and health into the public market-data lifecycle | `SPEC-02`; existing MD components |
 | `ASM-OE` | DONE | Composed TCP A/B sessions, dispatcher, state, commands, routing, events, exact REST recovery, and fail-closed readiness into `StarbaseOrderEntryApi` | `ORD-07`; existing OE components |
 | `CON-01`–`CON-08` | TODO | Validate a representative consumer dependency, independent backend selection, lifecycle holder, book/trade adapters, execution/amend/cancel/open-order paths, and health/rollback behavior | `ASM-MD`, `ASM-OE`; follow the consumer repository's own guidance |
-| `VAL-01`–`VAL-07` | TODO | Full artifact and consumer-graph builds, replay/recovery/TCP scenarios, end-to-end allocations, private smoke tests, and operations/configuration/rollback audit | All integration work |
+| `VAL-01`–`VAL-07` | TODO | Full artifact and consumer-graph builds, replay/recovery/TCP scenarios, end-to-end allocations, private smoke tests, and operations/configuration/rollback audit | `SPEC-03`; all integration work |
 
 Do not bypass the completed `ORD-07` reconciliation or any assembled readiness gate during
 consumer integration.
@@ -539,15 +615,20 @@ consumer integration.
    [schema-manifest.md](schema-manifest.md).
 3. Download the current direct production/testnet SBE XMLs, legacy XML bundle, REST
    OpenAPI/reference/authentication docs, binary reference/changelog, current order SDK,
-   current MD SDK, and legacy SDK. Compute hashes and compare them with the 2026-08-28
+   current MD SDK, and legacy SDK. Compute hashes and compare them with the 2026-09-03
    revalidation record.
-4. Preserve completed `SPEC-02`, `ORD-07`, `ASM-MD`, and `ASM-OE` behavior. Do not guess
+4. If the source set still matches, preserve completed `SPEC-03` and run the credential-safe
+   EC2 validation with state changes disabled. If it changed again, update the audit and
+   re-scope before protocol or live-runner changes.
+5. Preserve completed `SPEC-02`, `ORD-07`, `ASM-MD`, and `ASM-OE` behavior. Do not guess
    through the isolated REST authentication conflict or bypass any reference,
    reconciliation, sequence, book, or session readiness gate.
-5. Do not activate `CON-01` until a representative consumer repository is explicitly in
+6. Collect the credential-safe runner's complete non-trading `STARBASE_TEST` output from
+   the private-network instance. Do not enable order submission during this phase.
+7. Do not activate `CON-01` until a representative consumer repository is explicitly in
    scope. Then inspect that repository's own guidance and git status before planning or
    editing it.
-6. Record `CON-01` active before consumer production changes. Add the smallest dependency
+8. Record `CON-01` active before consumer production changes. Add the smallest dependency
    and independent-backend-selection RED tests, then work through consumer integration
    and validation rows one at a time.
 

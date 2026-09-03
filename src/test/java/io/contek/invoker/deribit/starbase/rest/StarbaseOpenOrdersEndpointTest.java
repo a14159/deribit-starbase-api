@@ -63,7 +63,7 @@ public final class StarbaseOpenOrdersEndpointTest {
     }
   }
 
-  public void testSupportsEmptySnapshotAndNullableOptionalFields() throws Exception {
+  public void testSupportsEmptySnapshotAndOmittedOptionalFields() throws Exception {
     try (TestServer fixture = server(exchange ->
         respond(exchange, 200, "{\"jsonrpc\":\"2.0\",\"result\":[]}"));
         StarbaseRestApi api = api(fixture.server())) {
@@ -73,8 +73,7 @@ public final class StarbaseOpenOrdersEndpointTest {
     String order = """
         {"order_id":"-9223372036854775807","instrument_name":"BTC-PERPETUAL","side":"buy",
         "price":0,"amount":1,"filled_amount":0,"order_state":"open",
-        "order_type":"market","time_in_force":null,"post_only":null,
-        "reduce_only":null,"label":null}
+        "order_type":"market","time_in_force":null,"label":null}
         """;
     try (TestServer fixture = server(exchange -> respond(exchange, 200, envelope(order)));
         StarbaseRestApi api = api(fixture.server())) {
@@ -83,8 +82,36 @@ public final class StarbaseOpenOrdersEndpointTest {
       assertEquals(StarbaseRestOrderType.MARKET, decoded.type());
       assertNull(decoded.timeInForce());
       assertNull(decoded.postOnly());
+      assertNull(decoded.rejectPostOnly());
+      assertNull(decoded.reduceOnly());
       assertNull(decoded.creationTimestamp());
     }
+  }
+
+  public void testDecodesDistinctOpenOrderFlagCombinations() throws Exception {
+    String orders = orderWithFlags("31", "true", "false", "true") + ","
+        + orderWithFlags("32", "false", "true", "false");
+    try (TestServer fixture = server(exchange -> respond(exchange, 200, envelopeValues(orders)));
+        StarbaseRestApi api = api(fixture.server())) {
+      List<StarbaseOpenOrder> decoded = api.getOpenOrders();
+
+      assertTrue(decoded.get(0).postOnly());
+      assertFalse(decoded.get(0).rejectPostOnly());
+      assertTrue(decoded.get(0).reduceOnly());
+      assertFalse(decoded.get(1).postOnly());
+      assertTrue(decoded.get(1).rejectPostOnly());
+      assertFalse(decoded.get(1).reduceOnly());
+    }
+  }
+
+  public void testContradictoryPostOnlyModesFailClosed() throws Exception {
+    assertInvalid(orderWithFlags("41", "true", "true", "false"));
+  }
+
+  public void testExplicitlyNullOrderFlagsFailClosed() throws Exception {
+    assertInvalid(orderWithFlags("42", "null", "false", "false"));
+    assertInvalid(orderWithFlags("43", "false", "null", "false"));
+    assertInvalid(orderWithFlags("44", "false", "false", "null"));
   }
 
   public void testParsesExactSignedLongBoundariesAndLongParseLongForms() throws Exception {
@@ -147,6 +174,15 @@ public final class StarbaseOpenOrdersEndpointTest {
     return "{\"order_id\":\"" + orderId + "\",\"instrument_name\":\"BTC-PERPETUAL\","
         + "\"side\":\"buy\",\"price\":1,\"amount\":1,\"filled_amount\":0,"
         + "\"order_state\":\"open\",\"order_type\":\"limit\"}";
+  }
+
+  private static String orderWithFlags(
+      String orderId, String postOnly, String rejectPostOnly, String reduceOnly) {
+    return "{\"order_id\":\"" + orderId + "\",\"instrument_name\":\"BTC-PERPETUAL\","
+        + "\"side\":\"buy\",\"price\":1,\"amount\":1,\"filled_amount\":0,"
+        + "\"order_state\":\"open\",\"order_type\":\"limit\","
+        + "\"post_only\":" + postOnly + ",\"reject_post_only\":" + rejectPostOnly
+        + ",\"reduce_only\":" + reduceOnly + "}";
   }
 
   private static void assertInvalid(String order) throws Exception {

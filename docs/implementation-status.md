@@ -4,19 +4,100 @@
 
 | Field | Value |
 | --- | --- |
-| Overall state | **WAITING — local public assembly is complete; consumer integration is not in scope** |
+| Overall state | **WAITING — the EC2 validation runner is complete and awaits execution from the user's private-network instance** |
 | Gate resolution date | 2026-08-27 |
-| Active task | None; `CON-01` cannot be activated until a representative consumer repository is explicitly placed in scope |
-| Blocking task | Consumer repository/guidance is absent; the unresolved REST authentication conflict also remains isolated pending live evidence or clarification |
+| Active task | None; `VAL-EC2` is implemented locally and cannot collect private evidence until the user runs it on EC2 |
+| Blocking task | Live output from the user's EC2 private-network instance is pending; consumer repository/guidance is absent; the unresolved REST authentication conflict remains isolated pending that evidence or clarification |
 | Last completed implementation task | `ASM-OE`, redundant public order-entry lifecycle assembly |
-| Local verification | 2026-08-28: allocation-test maintenance passed `FeedSequenceTrackerTest` and affected `FeedArbitratorTest` in 20/20 fresh forks each, plus the connection-race regression in 10/10 fresh forks; combined focused tests 19/19; final `mvnw clean test` 339/339. Earlier focused order-entry assembly/codec/connection/factory tests remain 48/48 and `StarbaseOrderEntryAssemblyTest` 12/12 including zero-byte post-warm-up routing. |
+| Local verification | 2026-08-28: fresh upstream audit matched all 18 recorded hashes; `StarbaseTestEnvironmentMainTest` passed 3/3 and clean `mvnw clean test` passed 342/342. A credential-safe loopback failure-path run completed every applicable phase, redacted all configured sensitive values, summarized 11 expected connection failures, and exited nonzero. No live private endpoint or credential was used. |
 | Production readiness | **No** — downstream consumer integration, joint builds, private connectivity/authentication validation, and operations/rollback validation remain |
-| Exact next action | Explicitly place a representative consumer repository in scope; then inspect its guidance and git status, record `CON-01` active, and add the smallest dependency/backend-selection RED test before production changes. |
+| Exact next action | On the EC2 instance, set the assigned PrivateLink host and client ID, configure the optional multicast interface when available, run `./mvnw test-compile`, then launch `StarbaseTestEnvironmentMain` from `target/test-classes:target/classes` and return the complete `STARBASE_TEST` output. Enter the secret at the console prompt or supply it process-locally, then clear it. |
 
 `SPEC-02`, `ORD-07`, and `ASM-MD` completed on 2026-08-27 after the required restart audit
 and test-first implementation. `ASM-OE` completed on 2026-08-28 after another complete
 official-source revalidation. `SPEC-01` remains resolved by the formal clarification, but
 production readiness remains closed until consumer integration and validation complete.
+
+## 2026-08-28 `VAL-EC2` runner handoff
+
+The test-scope `StarbaseTestEnvironmentMain` now gives the user's EC2 instance one bounded
+entry point for the complete local Maven suite followed by private-environment validation.
+It accepts an assigned host, client ID, and optional port overrides from process-local
+environment variables. The secret defaults to a masked console prompt; no credential or
+private endpoint is present in source, tracked documentation, fixtures, or logs. Mutable
+credential and frame copies are wiped, and the Maven child process receives no
+`STARBASE_*` variables.
+
+The live phases are deliberately non-trading-first:
+
+- credential-free TCP connections cover test SBE A/B and REST A/B on the audited AWS
+  default ports;
+- the production REST implementation parses public instruments on A/B, HTTP Basic public
+  controls test the dedicated authentication guide, and one read-only implementation
+  Bearer `get_open_orders` call captures the isolated OpenAPI/auth-guide conflict without
+  exceeding its per-portfolio rate;
+- one exact testnet-v14 logon per SBE side validates `LogonConf` and a correlated
+  `TestRequest`/`Heartbeat` round trip, while a separate one-shot v15 compatibility probe
+  records the known production-assembly/testnet mismatch without starting the reconnecting
+  public assembly;
+- when an interface is supplied, the production single-side market-data API joins the
+  audited test incremental/snapshot multicast groups and reports packet/message/health
+  counters. Retransmit is explicitly skipped because the official test service is
+  unavailable on the AWS path; and
+- order submission remains disabled by default. Even an exact risk acknowledgement cannot
+  bypass the audited v14/v15 gate, so the current runner places, amends, and cancels no
+  order.
+
+Test-first and verification evidence:
+
+- RED: focused compilation produced seven expected missing-main/configuration/framing
+  errors.
+- PASS: `StarbaseTestEnvironmentMainTest` passed 3/3, covering default read-only behavior,
+  sensitive diagnostic redaction, the exact state-change acknowledgement/input guard, and
+  v14 in both the TCP header and Logon body.
+- PASS: clean `mvnw clean test` passed 342/342 with no failures, errors, or skips.
+- PASS: a loopback closed-port `--live-only` run reached the final summary, reported 11
+  expected failures plus the appropriate blocked/skipped phases, exposed none of the fake
+  configured host/client/secret values, and returned failure status.
+
+Changed files are the test-scope main, its deterministic test, and this canonical handoff.
+No production source, protocol behavior, dependency, credential, endpoint, capture, or
+consumer repository changed. Private live validation and production readiness remain open.
+
+## 2026-08-28 private connectivity validation attempt
+
+The user explicitly requested a live smoke test against the Starbase test environment and
+placed a neighboring repository in scope only as the existing credential source. Its
+guidance and dirty worktree were inspected before access. Credential literals were located
+but were not printed, copied, written to another file, or loaded into a client because the
+connection gate failed first.
+
+The restart audit re-downloaded the production/testnet OE and MD XMLs, legacy XML bundle,
+REST OpenAPI, all five endpoint references, the authentication guide, binary reference,
+changelog, current OE and MD SDKs, legacy SDK, and official PCAP. All 18 SHA-256 values
+matched the pins in [protocol-source-review.md](protocol-source-review.md), so no protocol
+behavior or wire-layout change is authorized by this attempt.
+
+Connectivity evidence:
+
+- TCP connect attempts to official test SBE A/B on port 4210 and REST A/B on port 4410
+  each timed out after five seconds before any authentication or application bytes were
+  sent.
+- No route for the Starbase test network was configured on this workstation, while a
+  control TCP connection to the public Deribit test HTTPS service succeeded. This isolates
+  the failure to missing private Starbase connectivity rather than general internet access.
+- The official quickstart states that Starbase is unavailable over the public internet and
+  requires approved private connectivity. The credential source is used by a standard
+  Deribit client; it is not independent evidence that the values are separate Starbase
+  credentials.
+- A fresh `mvnw clean test` completed successfully with 339 tests, no failures, errors, or
+  skips.
+
+No live logon, heartbeat, REST authentication comparison, market-data subscription,
+retransmit, or order lifecycle was attempted. No source or test harness was added, and this
+evidence does not claim private validation or production readiness. Once private routing is
+available, repeat reachability first, then use process-local credential copies and wipe them
+after a non-trading SBE authentication/heartbeat and REST read-only smoke test.
 
 ## 2026-08-28 allocation-test maintenance
 

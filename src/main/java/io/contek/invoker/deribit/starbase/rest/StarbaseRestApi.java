@@ -156,14 +156,19 @@ public final class StarbaseRestApi extends AbstractStarbaseApi {
     if (amount.signum() < 0 || filledAmount.signum() < 0 || filledAmount.compareTo(amount) > 0) {
       throw new IllegalArgumentException("invalid order amount/fill relationship");
     }
+    Boolean postOnly = optionalBoolean(map, "post_only");
+    Boolean rejectPostOnly = optionalBoolean(map, "reject_post_only");
+    Boolean reduceOnly = optionalBoolean(map, "reduce_only");
+    if (Boolean.TRUE.equals(postOnly) && Boolean.TRUE.equals(rejectPostOnly)) {
+      throw new IllegalArgumentException("post_only and reject_post_only are mutually exclusive");
+    }
     return new StarbaseOpenOrder(
         exactOrderId(map), requiredString(map, "instrument_name"),
         StarbaseOrderSide.parse(requiredString(map, "side")), requiredDecimal(map, "price"),
         amount, filledAmount, nullableDecimal(map, "average_price"),
         StarbaseRestOrderState.parse(requiredString(map, "order_state")),
         StarbaseRestOrderType.parse(requiredString(map, "order_type")),
-        nullableTimeInForce(map), nullableBoolean(map, "post_only"),
-        nullableBoolean(map, "reject_post_only"), nullableBoolean(map, "reduce_only"),
+        nullableTimeInForce(map), postOnly, rejectPostOnly, reduceOnly,
         nullableLong(map, "creation_timestamp"),
         nullableLong(map, "last_update_timestamp"), nullableString(map, "label"),
         nullableBoolean(map, "api"), nullableDecimal(map, "max_show"),
@@ -267,6 +272,13 @@ public final class StarbaseRestApi extends AbstractStarbaseApi {
   private static Boolean nullableBoolean(Map<?, ?> map, String name) {
     Object value = map.get(name);
     if (value == null) return null;
+    if (!(value instanceof Boolean bool)) throw new IllegalArgumentException(name + " must be boolean");
+    return bool;
+  }
+
+  private static Boolean optionalBoolean(Map<?, ?> map, String name) {
+    if (!map.containsKey(name)) return null;
+    Object value = map.get(name);
     if (!(value instanceof Boolean bool)) throw new IllegalArgumentException(name + " must be boolean");
     return bool;
   }

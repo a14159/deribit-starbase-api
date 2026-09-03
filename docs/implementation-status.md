@@ -4,12 +4,12 @@
 
 | Field | Value |
 | --- | --- |
-| Overall state | **WAITING — `SPEC-03` complete; private `VAL-EC2` evidence is next** |
+| Overall state | **WAITING — `RST-06` complete; private `VAL-EC2` evidence is next** |
 | Gate resolution date | 2026-08-27 |
-| Active task | None; `SPEC-03` completed locally after a repeated 18/18 source-hash match |
+| Active task | None; `RST-06` completed locally after a fresh 18/18 source-hash match |
 | Blocking task | `VAL-EC2` requires the assigned private-network environment and credentials; consumer repository/guidance is absent; the REST authentication conflict remains isolated |
-| Last completed implementation task | `SPEC-03`, per-message order-entry version bounds and testnet-v15 live-runner maintenance |
-| Local verification | 2026-09-03: initial focused RED failed 3/15 and the negotiated-ceiling edge RED failed 1/6 as intended; affected order-entry/live tests passed 61/61; pinned review-date RED failed 1/1 then passed 1/1; final clean `mvnw clean test` passed 346/346; allocation-containing dispatcher suites passed 12/12 with no skips and zero-byte assertions intact. |
+| Last completed implementation task | `RST-06`, fail-closed Starbase REST open-order flag validation |
+| Local verification | 2026-09-03: `RST-06` focused RED failed 2/9 as intended; focused PASS 9/9; affected REST/reconciliation/assembly tests passed 42/42; isolated retry of one unrelated full-suite timing failure passed 3/3; final clean `mvnw clean test` passed 349/349. |
 | Production readiness | **No** — downstream consumer integration, joint builds, private connectivity/authentication validation, and operations/rollback validation remain |
 | Exact next action | On the assigned private-network instance, revalidate the official sources, leave state changes disabled, run the credential-safe `StarbaseTestEnvironmentMain`, and record its complete non-trading `STARBASE_TEST` output. |
 
@@ -17,6 +17,37 @@
 and test-first implementation. `ASM-OE` completed on 2026-08-28 after another complete
 official-source revalidation. `SPEC-01` remains resolved by the formal clarification, but
 production readiness remains closed until consumer integration and validation complete.
+
+## 2026-09-03 `RST-06` REST open-order flag validation maintenance
+
+The requester explicitly authorized the review's recommended REST hardening. A fresh
+18/18 official-source audit matched every 2026-09-03 pin before work began, so this task is
+limited to the unchanged OpenAPI contract: retain distinct optional `post_only`,
+`reject_post_only`, and `reduce_only` booleans; reject explicit JSON `null`; and reject the
+mutually exclusive `post_only=true` plus `reject_post_only=true` state. It does not change
+wire layout, REST authentication, exact-ID reconciliation, mass-quote scope, or readiness.
+
+`StarbaseRestApi` now distinguishes an omitted optional order flag from a present JSON
+`null`, rejects present non-booleans/nulls, and rejects the contradictory dual post-only
+mode before publishing any snapshot. Two valid orders with complementary flag values pin
+the three JSON-to-record mappings independently. Omitted optional flags still decode as
+`null`; `reduce_only` remains observation-only and cannot be submitted through SBE.
+
+Test-first evidence:
+
+- RED: focused `StarbaseOpenOrdersEndpointTest` ran 9 tests and failed the two new
+  fail-closed cases because contradictory and explicitly null flags were accepted.
+- PASS: the corrected focused suite passed 9/9; affected REST, recovery, reconciliation,
+  and order-entry assembly suites passed 42/42.
+- The first clean full run passed 348/349 and observed an unrelated
+  `StarbaseAdministrativeEndpointsTest` timing failure; that unchanged class passed 3/3 in
+  isolation, and the second clean full run passed 349/349 with no failures, errors, or
+  skips.
+
+Changed files are `StarbaseRestApi`, `StarbaseOpenOrdersEndpointTest`, and this canonical
+handoff. No schema, authentication, identity reconciliation, order-entry, mass-quote,
+credential, endpoint, or consumer behavior changed. Private validation remains unavailable,
+so `VAL-EC2` is again the exact next action and production readiness remains closed.
 
 ## 2026-09-03 latest-source audit and `SPEC-03` completion
 
@@ -524,7 +555,7 @@ below; the tests and source are the detailed executable record, while
 | `OEC-01`–`OEC-06` | 25 hardcoded order-entry session, new/amend/cancel/mass-cancel, response/reject, fill, and unsolicited lifecycle layouts with fail-closed dispatch | `codec/orderentry/*Test.java` |
 | `OET-01`–`OET-07` | Reusable TCP frame assembly; serialized partial-write handling; explicit connection loop; authentication; heartbeat/inactivity; sequence/resend; reconnect/backoff/readiness gates | `orderentry/connection/*Test.java` |
 | `ORD-01`–`ORD-06`, `CLIENT-ID-01` | Fixed correlation table; cross-session local order state; command encoder facade; exact-once fills; native signed-long and stateless canonical bidirectional String client IDs; deterministic one-send A/B routing | `orderentry/state/*Test.java`, `orderentry/command/*Test.java` |
-| `RST-01`–`RST-05` | Configured bearer/no-auth HTTP transport; instruments and registry bootstrap; open-order parsing; cancel-all/lock/unlock; rate-limited recovery cache | `rest/*Test.java` |
+| `RST-01`–`RST-06` | Configured bearer/no-auth HTTP transport; instruments and registry bootstrap; fail-closed open-order parsing/flag validation; cancel-all/lock/unlock; rate-limited recovery cache | `rest/*Test.java` |
 | `SPEC-02`, `ORD-07` | Current production schema/REST model adoption and exact decimal REST/SBE identity reconciliation | Protocol/REST/codec tests and `OrderStateReconciliationTest` |
 | `ASM-MD`, `ASM-OE` | Redundant public market-data and order-entry lifecycles with fail-closed recovery/readiness | `StarbaseMarketDataAssemblyTest`, `StarbaseOrderEntryAssemblyTest` |
 
@@ -597,6 +628,7 @@ Green component/replay tests do **not** make the public APIs a complete client:
 | `SPEC-01` | DONE | Formal clarification: Starbase REST `order_id` is the decimal string serialization of SBE `orderId` | Deribit support response dated 2026-08-27 |
 | `SPEC-02` | DONE | Adopted applicable production OE v12-v15, corrected MD v1, and unconflicted REST model deltas; unresolved REST authentication conflict isolated with readiness closed | Current official sources; `SPEC-01` resolved |
 | `SPEC-03` | DONE | Adopted testnet OE v15 and the documented distinction between negotiated session ceiling and per-message TCP header version; corrected dispatcher and live-runner assumptions test-first | 2026-09-03 official-source audit; unchanged production OE v15 layout |
+| `RST-06` | DONE | Reject contradictory or explicitly null REST open-order flags while retaining distinct optional `post_only`, `reject_post_only`, and `reduce_only` mappings | Unchanged current OpenAPI; fresh 18/18 source audit |
 | `ORD-07` | DONE | Parse the clarified exact ID and reconcile missing, extra, matching, duplicate, invalid, and ambiguous REST/SBE orders before restoring readiness | `SPEC-02` |
 | `ASM-MD` | DONE | Compose both A/B feed instances, arbitration, retransmit, snapshot fallback, atomic books, and health into the public market-data lifecycle | `SPEC-02`; existing MD components |
 | `ASM-OE` | DONE | Composed TCP A/B sessions, dispatcher, state, commands, routing, events, exact REST recovery, and fail-closed readiness into `StarbaseOrderEntryApi` | `ORD-07`; existing OE components |

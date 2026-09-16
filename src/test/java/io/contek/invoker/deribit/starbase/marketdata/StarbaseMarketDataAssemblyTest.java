@@ -203,6 +203,7 @@ public final class StarbaseMarketDataAssemblyTest {
     synchronize(api, 1L, 99L, 10L);
     ByteBuffer packet = bidPutPacket(100L, 2L, 20L, 100L, 2L);
     long sequence = exerciseLive(api, packet, 100L, 20_000);
+    sequence = exerciseLive(api, packet, sequence, 100_000);
 
     long before = bean.getThreadAllocatedBytes(threadId);
     sequence = exerciseLive(api, packet, sequence, 100_000);

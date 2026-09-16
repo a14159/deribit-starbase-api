@@ -814,6 +814,29 @@ public final class StarbaseOrderEntryApi extends AbstractStarbaseApi {
         || orders.instrumentId(orderId) != instrumentId) {
       throw new StarbaseProtocolException("cancel response identity mismatch");
     }
+    if (CancelOrderResponseDecoder.hasAuthoritativeQuantities(buffer, offset)) {
+      if (CancelOrderResponseDecoder.quantityExponent(buffer, offset)
+              != CancelOrderResponseDecoder.totalFilledExponent(buffer, offset)
+          || CancelOrderResponseDecoder.quantityExponent(buffer, offset)
+              != orders.quantityExponent(orderId)) {
+        throw new StarbaseProtocolException("cancel response quantity exponent mismatch");
+      }
+      long remaining;
+      try {
+        remaining =
+            Math.subtractExact(
+                CancelOrderResponseDecoder.quantityMantissa(buffer, offset),
+                CancelOrderResponseDecoder.totalFilledMantissa(buffer, offset));
+      } catch (ArithmeticException overflow) {
+        throw new StarbaseProtocolException("cancel response quantity overflow");
+      }
+      if (CancelOrderResponseDecoder.quantityMantissa(buffer, offset)
+              != orders.originalQuantity(orderId)
+          || remaining < 0
+          || remaining != orders.remainingQuantity(orderId)) {
+        throw new StarbaseProtocolException("cancel response quantity does not match local state");
+      }
+    }
     if (!orders.cancel(
         session.sessionId, TcpHeaderCodec.sequenceNumber(buffer, offset), orderId)) {
       throw new StarbaseProtocolException("cancel response could not be applied");

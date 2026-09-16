@@ -1,6 +1,7 @@
 package io.contek.invoker.deribit.starbase.codec.orderentry;
 
 import io.contek.invoker.deribit.starbase.common.StarbaseProtocolException;
+import io.contek.invoker.deribit.starbase.protocol.ProtocolSchemas;
 import java.nio.ByteBuffer;
 
 public final class LogonDecoder {
@@ -16,7 +17,7 @@ public final class LogonDecoder {
       throw new StarbaseProtocolException("invalid Logon resetSeqNum");
     }
     int schemaVersion = schemaVersion(buffer, offset);
-    if (schemaVersion < 14 || schemaVersion > 15) {
+    if (schemaVersion < 14 || schemaVersion > ProtocolSchemas.ORDER_ENTRY.version()) {
       throw new StarbaseProtocolException("unsupported Logon schemaVersion");
     }
     if (cancelOnDisconnect(buffer, offset) > 1) {

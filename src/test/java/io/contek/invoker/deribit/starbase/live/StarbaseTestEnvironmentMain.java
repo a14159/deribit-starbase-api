@@ -49,13 +49,13 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>This class deliberately lives in test sources. Credentials are accepted only from the
  * process environment or an interactive password prompt, are never printed, and are erased from
- * mutable local copies. The testnet SBE v15 probe is bounded and sends no order messages.
+ * mutable local copies. The testnet SBE v16 probe is bounded and sends no order messages.
  */
 public final class StarbaseTestEnvironmentMain {
 
   static final String STATE_CHANGE_ACKNOWLEDGEMENT =
       "I_ACCEPT_THAT_TEST_ORDERS_CAN_EXECUTE";
-  private static final int TESTNET_SCHEMA_VERSION = 15;
+  private static final int TESTNET_SCHEMA_VERSION = 16;
   private static final int MAXIMUM_FRAME_BYTES = 65_536;
 
   public static void main(String[] arguments) {
@@ -195,7 +195,7 @@ public final class StarbaseTestEnvironmentMain {
           STARBASE_ALLOW_STATE_CHANGES=true
           STARBASE_STATE_CHANGE_ACKNOWLEDGEMENT=I_ACCEPT_THAT_TEST_ORDERS_CAN_EXECUTE
 
-        The current official test environment and production assembly both use SBE v15.
+        The current official test environment and production assembly both use SBE v16.
         This runner remains non-trading: it does not submit an order even when the explicit
         state-change acknowledgement and inputs are supplied.
 
@@ -590,8 +590,8 @@ public final class StarbaseTestEnvironmentMain {
 
       RestApis restApis = runRestChecks();
       try {
-        runSbeProbe("sbe-a-v15-logon", configuration.sbePortA);
-        runSbeProbe("sbe-b-v15-logon", configuration.sbePortB);
+        runSbeProbe("sbe-a-v16-logon", configuration.sbePortA);
+        runSbeProbe("sbe-b-v16-logon", configuration.sbePortB);
         runMarketDataCheck();
         reportStateChangingPhase();
       } finally {

@@ -124,9 +124,9 @@ colliding inputs normalize to the same canonical String. Consumers must use an
 ID-generation scheme that is collision-free for the IDs it emits, while duplicate live
 numeric IDs fail closed.
 
-Make unsupported semantics explicit. XML v11 has no reduce-only field: reject or route the
-whole order through the configured standard backend, never drop the flag. Convert quantity
-only from authoritative reference data and reject inexact values.
+Make unsupported semantics explicit. The current pinned order-entry XML has no reduce-only
+field: reject or route the whole order through the configured standard backend, never drop
+the flag. Convert quantity only from authoritative reference data and reject inexact values.
 
 ## REST recovery plane
 

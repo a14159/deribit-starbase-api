@@ -2,7 +2,7 @@
 <sbe:messageSchema xmlns:sbe="http://fixprotocol.io/2016/sbe"
                    package="cb.deribit.gateway.sbe.codec.order"
                    id="2101"
-                   version="15"
+                   version="16"
                    semanticVersion="1.5"
                    description="Deribit SBE Order Gateway API"
                    byteOrder="littleEndian"
@@ -438,6 +438,8 @@
         <field name="orderId"            id="40" type="OrderId"/>
         <field name="instrumentId"       id="48" type="InstrumentId"/>
         <field name="receiveTime"        id="56" type="TimestampNanos" description="receive time on gateway"/>
+        <field name="quantity"           id="65" type="Decimal72" sinceVersion="16" description="order quantity known to the matching engine"/>
+        <field name="totalFilled"        id="74" type="Decimal72" sinceVersion="16" description="cumulative filled quantity; client derives cancelled/leaves as quantity - totalFilled"/>
     </sbe:message>
 
     <sbe:message name="CancelOrderReject" id="222">

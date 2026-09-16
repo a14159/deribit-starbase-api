@@ -1,17 +1,16 @@
 # Deribit Starbase API
 
-Java 23 components for Deribit's not-yet-launched Starbase interfaces. Maven coordinates:
+Java 23 components for Deribit's Starbase interfaces. Maven coordinates:
 `io.contek.invoker:invoker-deribit-starbase-api:0.1.0-SNAPSHOT`.
 
 ## Status
 
-Development is paused (since 2026-07-31) for a corrected or clarified specification. This
-is a locally tested, unintegrated prototype—not production-ready.
-
-Reconnect recovery is blocked because SBE order-entry v11 identifies orders with signed
-64-bit `orderId`/`clientOrderId`, while REST 2.0 exposes a UUID-style `order_id` and optional
-`label`. No official exact bridge exists; approximate reconciliation could select the
-wrong order, so trading readiness remains fail-closed.
+The local implementation is current through order-entry schema v16 and market-data schema
+v1. It remains an unintegrated prototype—not production-ready—until downstream integration,
+private-environment validation, and operational/rollback validation complete. Reconnect
+recovery uses Deribit's clarified exact mapping from the Starbase REST decimal-string
+`order_id` to the SBE signed 64-bit `orderId`; malformed or ambiguous identities fail
+closed.
 
 Project context:
 
@@ -34,15 +33,16 @@ Project context:
   one-minute minimum attempt interval.
 - Deterministic official-PCAP replay and hot-path allocation checks.
 
-They are not yet fully composed behind the public APIs; see the [known assembly and
-validation gaps](docs/implementation-status.md#known-assembly-and-validation-gaps).
+The redundant order-entry and market-data paths are composed behind public APIs. See the
+[canonical implementation status](docs/implementation-status.md) for remaining validation
+and integration gaps.
 
 ## Build
 
 Use JDK 23+ and the Maven wrapper:
 
 ```text
-mvnw clean test
+./mvnw clean test
 ```
 
 Tests have no framework dependency. Surefire's auto-detected
@@ -50,8 +50,9 @@ Tests have no framework dependency. Surefire's auto-detected
 zero-argument `test*` methods; local `TestAssertions` supplies assertions. The baseline
 test verifies Java assertions are enabled.
 
-A clean run on 2026-08-03 passed all 300 tests (no failures, errors, or skips). No private
-live Starbase environment was available, so this proves local behavior only.
+The 2026-09-16 clean run passed 352/352 tests. This proves local behavior only; it does not
+establish production readiness or replace the credential-safe private-environment
+validator.
 
 For machine-specific launch notes, copy
 [`docs/local-environment.example.md`](docs/local-environment.example.md) to ignored

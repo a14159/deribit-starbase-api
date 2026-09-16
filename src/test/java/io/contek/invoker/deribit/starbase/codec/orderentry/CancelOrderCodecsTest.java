@@ -1,10 +1,12 @@
 package io.contek.invoker.deribit.starbase.codec.orderentry;
 
 import static io.contek.invoker.deribit.starbase.testutil.TestAssertions.assertEquals;
+import static io.contek.invoker.deribit.starbase.testutil.TestAssertions.assertFalse;
 import static io.contek.invoker.deribit.starbase.testutil.TestAssertions.assertThrows;
 import static io.contek.invoker.deribit.starbase.testutil.TestAssertions.assertTrue;
 
 import com.sun.management.ThreadMXBean;
+import io.contek.invoker.deribit.starbase.codec.common.Decimal72Codec;
 import io.contek.invoker.deribit.starbase.codec.common.TcpHeaderCodec;
 import io.contek.invoker.deribit.starbase.common.StarbaseProtocolException;
 import java.lang.management.ManagementFactory;
@@ -106,6 +108,10 @@ public final class CancelOrderCodecsTest {
   public void testCancelResponseAndRejectPinAllFieldsAndOptionalOrderId() {
     ByteBuffer response = fixedFrame(220, 88, 7);
     CancelOrderResponseDecoder.validate(response, 0);
+    assertFalse(CancelOrderResponseDecoder.hasAuthoritativeQuantities(response, 0));
+    assertThrows(
+        StarbaseProtocolException.class,
+        () -> CancelOrderResponseDecoder.quantityMantissa(response, 0));
     assertEquals(1001L, CancelOrderResponseDecoder.timestampNanos(response, 0));
     assertEquals(1003L, CancelOrderResponseDecoder.clientOrderId(response, 0));
     assertEquals(1005L, CancelOrderResponseDecoder.orderId(response, 0));
@@ -127,6 +133,43 @@ public final class CancelOrderCodecsTest {
     assertTrue(CancelOrderRejectDecoder.isOrderIdNull(reject, 0));
     assertEquals(8, CancelOrderRejectDecoder.reason(reject, 0));
     assertEquals('o', CancelOrderRejectDecoder.detailsByte(reject, 0, 1));
+  }
+
+  public void testVersionSixteenCancelResponseAcceptsAppendedAuthoritativeQuantities() {
+    ByteBuffer response = versionSixteenCancelResponse(12, 5, -2);
+
+    CancelOrderResponseDecoder.validate(response, 0);
+    assertTrue(CancelOrderResponseDecoder.hasAuthoritativeQuantities(response, 0));
+    assertEquals(12L, CancelOrderResponseDecoder.quantityMantissa(response, 0));
+    assertEquals(-2, CancelOrderResponseDecoder.quantityExponent(response, 0));
+    assertEquals(5L, CancelOrderResponseDecoder.totalFilledMantissa(response, 0));
+    assertEquals(-2, CancelOrderResponseDecoder.totalFilledExponent(response, 0));
+  }
+
+  public void testCancelResponseVersionedLengthsAndRequiredQuantitiesFailClosed() {
+    ByteBuffer truncatedV16 = versionSixteenCancelResponse(12, 5, -2);
+    truncatedV16.putShort(TcpHeaderCodec.MESSAGE_LENGTH_OFFSET, (short) 88);
+    assertThrows(
+        StarbaseProtocolException.class,
+        () -> CancelOrderResponseDecoder.validate(truncatedV16, 0));
+
+    ByteBuffer extendedV15 = versionSixteenCancelResponse(12, 5, -2);
+    extendedV15.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 15);
+    assertThrows(
+        StarbaseProtocolException.class,
+        () -> CancelOrderResponseDecoder.validate(extendedV15, 0));
+
+    ByteBuffer nullQuantity = versionSixteenCancelResponse(12, 5, -2);
+    nullQuantity.putLong(32 + 56, Decimal72Codec.NULL_MANTISSA);
+    nullQuantity.put(32 + 64, (byte) Decimal72Codec.NULL_EXPONENT);
+    assertThrows(
+        StarbaseProtocolException.class,
+        () -> CancelOrderResponseDecoder.validate(nullQuantity, 0));
+
+    ByteBuffer negativeTotal = versionSixteenCancelResponse(12, -1, -2);
+    assertThrows(
+        StarbaseProtocolException.class,
+        () -> CancelOrderResponseDecoder.validate(negativeTotal, 0));
   }
 
   public void testMassCancelResponseAndRejectPinCountsReasonsAndDetails() {
@@ -194,7 +237,7 @@ public final class CancelOrderCodecsTest {
   public void testValidCancelDecodeAllocatesNothingAfterWarmup() {
     ByteBuffer request = ByteBuffer.allocateDirect(96).order(ByteOrder.LITTLE_ENDIAN);
     CancelOrderRequestEncoder.encode(request, 0, 1L, 2L, 3L, 1L, 0L, 1L);
-    ByteBuffer response = fixedFrame(220, 88, 7);
+    ByteBuffer response = versionSixteenCancelResponse(12, 5, -2);
     ThreadMXBean bean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
     long threadId = Thread.currentThread().threadId();
     for (int iteration = 0; iteration < 1_000_000; iteration++) {
@@ -202,6 +245,14 @@ public final class CancelOrderCodecsTest {
       CancelOrderResponseDecoder.validate(response, 0);
       sink += CancelOrderRequestDecoder.clientOrderId(request, 0);
       sink += CancelOrderResponseDecoder.orderId(response, 0);
+      sink += CancelOrderResponseDecoder.quantityMantissa(response, 0);
+    }
+    for (int iteration = 0; iteration < 100_000; iteration++) {
+      CancelOrderRequestDecoder.validate(request, 0);
+      CancelOrderResponseDecoder.validate(response, 0);
+      sink += CancelOrderRequestDecoder.clientOrderId(request, 0);
+      sink += CancelOrderResponseDecoder.orderId(response, 0);
+      sink += CancelOrderResponseDecoder.totalFilledMantissa(response, 0);
     }
     long before = bean.getThreadAllocatedBytes(threadId);
     for (int iteration = 0; iteration < 100_000; iteration++) {
@@ -209,6 +260,7 @@ public final class CancelOrderCodecsTest {
       CancelOrderResponseDecoder.validate(response, 0);
       sink += CancelOrderRequestDecoder.clientOrderId(request, 0);
       sink += CancelOrderResponseDecoder.orderId(response, 0);
+      sink += CancelOrderResponseDecoder.totalFilledMantissa(response, 0);
     }
     assertEquals(0L, bean.getThreadAllocatedBytes(threadId) - before);
   }
@@ -221,6 +273,19 @@ public final class CancelOrderCodecsTest {
     }
     TcpHeaderCodec.zeroPadding(frame, 0, messageLength);
     return frame;
+  }
+
+  private static ByteBuffer versionSixteenCancelResponse(
+      long quantity, long totalFilled, int exponent) {
+    ByteBuffer response = ByteBuffer.allocateDirect(112).order(ByteOrder.LITTLE_ENDIAN);
+    TcpHeaderCodec.encode(response, 0, 0, 106, 220, 16, 10L, 9L, 100L);
+    for (int index = 0; index < 7; index++) {
+      response.putLong(32 + index * 8, 1001L + index);
+    }
+    Decimal72Codec.put(response, 32 + 56, quantity, exponent);
+    Decimal72Codec.put(response, 32 + 65, totalFilled, exponent);
+    TcpHeaderCodec.zeroPadding(response, 0, 106);
+    return response;
   }
 
   private static void putDetails(ByteBuffer frame, int offset, String value) {

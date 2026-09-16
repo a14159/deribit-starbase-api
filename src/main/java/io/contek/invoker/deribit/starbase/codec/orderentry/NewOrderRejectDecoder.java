@@ -4,7 +4,7 @@ import io.contek.invoker.deribit.starbase.codec.common.TcpHeaderCodec;
 import io.contek.invoker.deribit.starbase.common.StarbaseProtocolException;
 import java.nio.ByteBuffer;
 
-/** Hardcoded decoder for order-entry schema-v15 NewOrderReject (template 202). */
+/** Hardcoded decoder for order-entry schema-v16 NewOrderReject (template 202). */
 public final class NewOrderRejectDecoder {
 
   public static final int TEMPLATE_ID = 202;

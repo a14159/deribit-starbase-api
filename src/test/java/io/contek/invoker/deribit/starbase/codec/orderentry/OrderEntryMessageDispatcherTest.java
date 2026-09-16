@@ -46,7 +46,7 @@ public final class OrderEntryMessageDispatcherTest {
     RecordingHandler handler = new RecordingHandler();
 
     ByteBuffer confirmation = ByteBuffer.allocateDirect(64).order(ByteOrder.LITTLE_ENDIAN);
-    LogonConfirmationCodec.encode(confirmation, 0, 30, 15, 1, 0, 10);
+    LogonConfirmationCodec.encode(confirmation, 0, 30, 16, 1, 0, 10);
     confirmation.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 12);
     OrderEntryMessageDispatcher.dispatch(confirmation, 0, handler);
 
@@ -86,7 +86,7 @@ public final class OrderEntryMessageDispatcherTest {
     RecordingHandler handler = new RecordingHandler();
     for (int templateId : implemented) {
       ByteBuffer frame = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN);
-      TcpHeaderCodec.encode(frame, 0, 0, 32, templateId, 15, 1, 0, 2);
+      TcpHeaderCodec.encode(frame, 0, 0, 32, templateId, 16, 1, 0, 2);
       RuntimeException failure =
           assertThrows(
               RuntimeException.class,
@@ -112,7 +112,7 @@ public final class OrderEntryMessageDispatcherTest {
         StarbaseProtocolException.class,
         () -> OrderEntryMessageDispatcher.dispatch(unknown, 0, handler));
 
-    ByteBuffer future = headerOnlyFrame(310, 16);
+    ByteBuffer future = headerOnlyFrame(310, 17);
     assertThrows(
         StarbaseProtocolException.class,
         () -> OrderEntryMessageDispatcher.dispatch(future, 0, handler));

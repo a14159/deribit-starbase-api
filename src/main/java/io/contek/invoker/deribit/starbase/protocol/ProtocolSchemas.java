@@ -3,7 +3,7 @@ package io.contek.invoker.deribit.starbase.protocol;
 /** Pinned protocol source metadata. XML resources are reference/test inputs, never runtime codecs. */
 public final class ProtocolSchemas {
 
-  public static final String REVIEW_DATE = "2026-09-03";
+  public static final String REVIEW_DATE = "2026-09-16";
   public static final String SOURCE_BUNDLE_URL =
       "https://statics.deribit.com/files/deribit-sbe-xmls.zip";
   public static final String ORDER_ENTRY_SOURCE_URL =
@@ -14,10 +14,10 @@ public final class ProtocolSchemas {
   public static final ProtocolSchema ORDER_ENTRY =
       new ProtocolSchema(
           2101,
-          15,
+          16,
           "1.5",
           "/schema/deribit-sbe-order-api.xml",
-          "4BA2A80B473AC233B6DDB971158E7A65353B1E287C7B304F14062AC2E5E9106C");
+          "64EBC71CCAC3A01203977718CD524C9476D311ADFF01049312CA0778E57CF559");
 
   public static final ProtocolSchema MARKET_DATA =
       new ProtocolSchema(

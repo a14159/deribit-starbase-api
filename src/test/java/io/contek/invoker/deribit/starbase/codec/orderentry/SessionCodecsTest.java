@@ -25,13 +25,13 @@ public final class SessionCodecsTest {
     assertEquals(104, encoded);
     assertEquals(1, TcpHeaderCodec.messageTypeId(frame, 3));
     assertEquals(100, TcpHeaderCodec.messageLength(frame, 3));
-    assertEquals(15, TcpHeaderCodec.version(frame, 3));
+    assertEquals(16, TcpHeaderCodec.version(frame, 3));
     LogonDecoder.validate(frame, 3);
     assertEquals('c', LogonDecoder.clientIdByte(frame, 3, 0));
     assertEquals(0, LogonDecoder.clientIdByte(frame, 3, 8));
     assertEquals('s', LogonDecoder.secretByte(frame, 3, 0));
     assertEquals(1, LogonDecoder.resetSequenceNumber(frame, 3));
-    assertEquals(15, LogonDecoder.schemaVersion(frame, 3));
+    assertEquals(16, LogonDecoder.schemaVersion(frame, 3));
     assertEquals(0, LogonDecoder.cancelOnDisconnect(frame, 3));
     assertEquals(104, TcpHeaderCodec.validateFrame(frame, 3));
   }
@@ -88,10 +88,10 @@ public final class SessionCodecsTest {
 
     assertEquals(
         40,
-        LogonConfirmationCodec.encode(frame, 0, 30, 15, 1L, 0L, 10L));
+        LogonConfirmationCodec.encode(frame, 0, 30, 16, 1L, 0L, 10L));
     LogonConfirmationCodec.validate(frame, 0);
     assertEquals(30, LogonConfirmationCodec.heartbeatIntervalSeconds(frame, 0));
-    assertEquals(15, LogonConfirmationCodec.schemaVersion(frame, 0));
+    assertEquals(16, LogonConfirmationCodec.schemaVersion(frame, 0));
 
     assertEquals(40, LogoutCodec.encode(frame, 0, "bye".toCharArray(), 2L, 1L, 11L));
     LogoutCodec.validate(frame, 0);
@@ -142,7 +142,7 @@ public final class SessionCodecsTest {
     frame.put(32 + 64, (byte) 0);
     frame.putShort(32 + 65, (short) 13);
     assertThrows(StarbaseProtocolException.class, () -> LogonDecoder.validate(frame, 0));
-    frame.putShort(32 + 65, (short) 15);
+    frame.putShort(32 + 65, (short) 16);
     frame.put(32 + 67, (byte) 2);
     assertThrows(StarbaseProtocolException.class, () -> LogonDecoder.validate(frame, 0));
     frame.put(32 + 67, (byte) 0);

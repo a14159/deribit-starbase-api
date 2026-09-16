@@ -16,6 +16,7 @@ import io.contek.invoker.deribit.starbase.codec.orderentry.LogonDecoder;
 import io.contek.invoker.deribit.starbase.codec.orderentry.MassCancelRequestDecoder;
 import io.contek.invoker.deribit.starbase.codec.orderentry.NewOrderRequestDecoder;
 import io.contek.invoker.deribit.starbase.codec.orderentry.ResendRequestCodec;
+import io.contek.invoker.deribit.starbase.codec.orderentry.TestRequestCodec;
 import io.contek.invoker.deribit.starbase.common.GatewaySide;
 import io.contek.invoker.deribit.starbase.common.IoPolicy;
 import io.contek.invoker.deribit.starbase.common.NanoClock;
@@ -176,7 +177,9 @@ public final class StarbaseOrderEntryAssemblyTest {
               numericClientOrderId,
               cancelCorrelation,
               signedOrderId,
-              501));
+              501,
+              10,
+              0));
       await(
           () ->
               api.orderStateByOrderId(signedOrderId)
@@ -332,7 +335,7 @@ public final class StarbaseOrderEntryAssemblyTest {
       await(() -> sideA.outboundCount() == 4);
       CancelOrderRequestDecoder.validate(sideA.outboundFrame(3), 0);
       assertEquals(cancelCorrelation, CancelOrderRequestDecoder.correlationId(sideA.outboundFrame(3), 0));
-      sideA.enqueue(cancelOrderResponse(6, 4, 101, cancelCorrelation, 9_001, 501));
+      sideA.enqueue(cancelOrderResponse(6, 4, 101, cancelCorrelation, 9_001, 501, 12, 5));
       await(() -> api.orderStateByOrderId(9_001) == LocalOrderStateStore.STATE_CANCELED);
 
       long massCorrelation = api.massCancel(Long.MIN_VALUE, 501, 0, 0);
@@ -477,6 +480,37 @@ public final class StarbaseOrderEntryAssemblyTest {
     }
   }
 
+  public void testCancelResponseQuantityMismatchFailsClosed() throws Exception {
+    MutableClock clock = new MutableClock();
+    ScriptedTransport sideA = new ScriptedTransport();
+    ScriptedTransport sideB = new ScriptedTransport();
+    OpenOrderRecoveryCache recovery =
+        new OpenOrderRecoveryCache(
+            clock, OpenOrderRecoveryCache.MINIMUM_REFRESH_INTERVAL, List::of);
+    try (StarbaseCredentials credentialsA = credentials('a');
+        StarbaseCredentials credentialsB = credentials('b');
+        StarbaseOrderEntryApi api =
+            pairedApi(clock, credentialsA, credentialsB, recovery, sideA, sideB)) {
+      api.setReferenceDataReady(true);
+      api.start();
+      await(() -> sideA.outboundCount() == 1 && sideB.outboundCount() == 1);
+      sideA.enqueue(logonConfirmation(1, 1));
+      sideB.enqueue(logonConfirmation(1, 1));
+      await(() -> api.isReady(GatewaySide.A) && api.isReady(GatewaySide.B));
+      long newCorrelation =
+          api.newLimit(402, 501, 25_000_000_000L, 10, -2, true, 0, 0, 1, 0, 0, 0);
+      await(() -> sideA.outboundCount() == 2);
+      sideA.enqueue(newOrderResponse(2, 2, 402, newCorrelation, 9_302, 501, 10, 0));
+      await(() -> api.orderStateByOrderId(9_302) == LocalOrderStateStore.STATE_OPEN);
+      long cancelCorrelation = api.cancel(402, 501);
+      await(() -> sideA.outboundCount() == 3);
+
+      sideA.enqueue(cancelOrderResponse(3, 3, 402, cancelCorrelation, 9_302, 501, 10, 1));
+      await(() -> !api.isReady(GatewaySide.A));
+      assertEquals(LocalOrderStateStore.STATE_OPEN, api.orderStateByOrderId(9_302));
+    }
+  }
+
   public void testIdleOrderFlowStaysOpenWithHeartbeatsUntilExactPeerInactivityBoundary()
       throws Exception {
     MutableClock clock = new MutableClock();
@@ -503,13 +537,26 @@ public final class StarbaseOrderEntryAssemblyTest {
                   && sideB.outboundTemplateCount(HeartbeatCodec.TEMPLATE_ID) == 1);
       sideA.enqueue(heartbeat(2, 2, false));
       sideB.enqueue(heartbeat(2, 2, false));
-      await(() -> api.isReady(GatewaySide.A) && api.isReady(GatewaySide.B));
+      sideA.enqueue(testRequest(3, 2, 71));
+      sideB.enqueue(testRequest(3, 2, 72));
+      await(
+          () ->
+              sideA.outboundTemplateCount(HeartbeatCodec.TEMPLATE_ID) == 2
+                  && sideB.outboundTemplateCount(HeartbeatCodec.TEMPLATE_ID) == 2);
+      await(() -> sideA.readInvocationCount() >= 4 && sideB.readInvocationCount() >= 4);
+      assertEquals(
+          71L,
+          HeartbeatCodec.correlationId(sideA.outboundFrame(sideA.outboundCount() - 1), 0));
+      assertEquals(
+          72L,
+          HeartbeatCodec.correlationId(sideB.outboundFrame(sideB.outboundCount() - 1), 0));
+      assertTrue(api.isReady(GatewaySide.A) && api.isReady(GatewaySide.B));
 
       clock.now = Duration.ofSeconds(119).toNanos();
       await(
           () ->
-              sideA.outboundTemplateCount(HeartbeatCodec.TEMPLATE_ID) >= 2
-                  && sideB.outboundTemplateCount(HeartbeatCodec.TEMPLATE_ID) >= 2);
+              sideA.outboundTemplateCount(HeartbeatCodec.TEMPLATE_ID) >= 3
+                  && sideB.outboundTemplateCount(HeartbeatCodec.TEMPLATE_ID) >= 3);
       assertTrue(api.isReady(), "no order listeners or commands must not close an idle session");
       clock.now = Duration.ofSeconds(121).toNanos();
       await(() -> !api.isReady());
@@ -649,13 +696,13 @@ public final class StarbaseOrderEntryAssemblyTest {
 
   private static void assertLogon(ByteBuffer frame) {
     LogonDecoder.validate(frame, 0);
-    assertEquals(15, LogonDecoder.schemaVersion(frame, 0));
+    assertEquals(16, LogonDecoder.schemaVersion(frame, 0));
     assertEquals(1, LogonDecoder.resetSequenceNumber(frame, 0));
   }
 
   private static ByteBuffer logonConfirmation(long sequence, long acknowledgment) {
     ByteBuffer frame = frame(40);
-    LogonConfirmationCodec.encode(frame, 0, 1, 15, sequence, acknowledgment, 1);
+    LogonConfirmationCodec.encode(frame, 0, 1, 16, sequence, acknowledgment, 1);
     frame.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 12);
     return frame;
   }
@@ -667,6 +714,14 @@ public final class StarbaseOrderEntryAssemblyTest {
     if (resend) {
       frame.put(TcpHeaderCodec.FLAGS_OFFSET, (byte) TcpHeaderCodec.FLAG_RESEND);
     }
+    return frame;
+  }
+
+  private static ByteBuffer testRequest(
+      long sequence, long acknowledgment, long correlationId) {
+    ByteBuffer frame = frame(40);
+    TestRequestCodec.encode(frame, 0, correlationId, sequence, acknowledgment, 1);
+    frame.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 0);
     return frame;
   }
 
@@ -884,9 +939,11 @@ public final class StarbaseOrderEntryAssemblyTest {
       long clientOrderId,
       long correlationId,
       long orderId,
-      long instrumentId) {
-    ByteBuffer frame = frame(88);
-    TcpHeaderCodec.encode(frame, 0, 0, 88, 220, 0, sequence, acknowledgment, 15_000);
+      long instrumentId,
+      long quantity,
+      long totalFilled) {
+    ByteBuffer frame = frame(112);
+    TcpHeaderCodec.encode(frame, 0, 0, 106, 220, 16, sequence, acknowledgment, 15_000);
     int body = TcpHeaderCodec.ENCODED_LENGTH;
     frame.putLong(body, 15_000);
     frame.putLong(body + 8, 7_300);
@@ -895,6 +952,9 @@ public final class StarbaseOrderEntryAssemblyTest {
     frame.putLong(body + 32, orderId);
     frame.putLong(body + 40, instrumentId);
     frame.putLong(body + 48, 14_999);
+    Decimal72Codec.put(frame, body + 56, quantity, -2);
+    Decimal72Codec.put(frame, body + 65, totalFilled, -2);
+    TcpHeaderCodec.zeroPadding(frame, 0, 106);
     return frame;
   }
 
@@ -1045,6 +1105,7 @@ public final class StarbaseOrderEntryAssemblyTest {
     private boolean closed;
     private boolean failNextWrite;
     private boolean discardWrites;
+    private int readInvocationCount;
 
     @Override
     public synchronized void open() {
@@ -1054,6 +1115,7 @@ public final class StarbaseOrderEntryAssemblyTest {
 
     @Override
     public synchronized int read(ByteBuffer buffer) {
+      readInvocationCount++;
       while (inbound.isEmpty() && !closed) {
         try {
           wait();
@@ -1105,6 +1167,10 @@ public final class StarbaseOrderEntryAssemblyTest {
 
     synchronized int outboundCount() {
       return outbound.size();
+    }
+
+    synchronized int readInvocationCount() {
+      return readInvocationCount;
     }
 
     synchronized ByteBuffer outboundFrame(int index) {

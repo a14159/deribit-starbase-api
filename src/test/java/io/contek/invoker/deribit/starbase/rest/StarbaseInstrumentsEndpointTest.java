@@ -94,6 +94,42 @@ public final class StarbaseInstrumentsEndpointTest {
     }
   }
 
+  public void testAdditionalFiltersCombineWithExistingFiltersWithoutNarrowingIds() throws Exception {
+    AtomicReference<String> requestUri = new AtomicReference<>();
+    try (TestServer fixture = server(exchange -> {
+      requestUri.set(exchange.getRequestURI().toString());
+      respond(exchange, 200, "{\"jsonrpc\":\"2.0\",\"result\":[]}");
+    }); StarbaseRestApi api = api(fixture.server())) {
+      api.getInstruments(new StarbaseInstrumentFilter(
+          "BTC & ETH", StarbaseInstrumentKind.OPTION, false, Long.MAX_VALUE,
+          ProductGroup.TIER_2, StarbaseInstrumentState.DELIVERED), null);
+      assertEquals(
+          "/api/v2/public/get_instruments?currency=BTC%20%26%20ETH&kind=option&expired=false"
+              + "&instrument_id=9223372036854775807&product_group=TIER_2&state=delivered",
+          requestUri.get());
+    }
+  }
+
+  public void testAllDocumentedLifecycleFiltersAndSignedIdsUseExactQueryValues() throws Exception {
+    String[] states = {"open", "inactive", "settlement", "delivered", "locked", "halted"};
+    StarbaseInstrumentState[] values = StarbaseInstrumentState.values();
+    assertEquals(states.length, values.length);
+    AtomicReference<String> requestUri = new AtomicReference<>();
+    try (TestServer fixture = server(exchange -> {
+      requestUri.set(exchange.getRequestURI().toString());
+      respond(exchange, 200, "{\"jsonrpc\":\"2.0\",\"result\":[]}");
+    }); StarbaseRestApi api = api(fixture.server())) {
+      for (int index = 0; index < states.length; index++) {
+        api.getInstruments(new StarbaseInstrumentFilter(
+            null, null, null, Long.MIN_VALUE + 1, null, values[index]), null);
+        assertEquals("/api/v2/public/get_instruments?instrument_id=-9223372036854775807&state="
+            + states[index], requestUri.get());
+      }
+    }
+    assertThrows(IllegalArgumentException.class,
+        () -> new StarbaseInstrumentFilter(null, null, null, Long.MIN_VALUE, null, null));
+  }
+
   public void testRefreshUpdatesRestIdentityButAuthoritativeDefinitionWins() throws Exception {
     InstrumentRegistry registry = new InstrumentRegistry(1);
     registry.bootstrapIdentity(42L, "SOL-PERPETUAL", ProductGroup.TIER_3);

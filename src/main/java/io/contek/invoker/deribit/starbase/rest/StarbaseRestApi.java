@@ -172,7 +172,8 @@ public final class StarbaseRestApi extends AbstractStarbaseApi {
         nullableLong(map, "creation_timestamp"),
         nullableLong(map, "last_update_timestamp"), nullableString(map, "label"),
         nullableBoolean(map, "api"), nullableDecimal(map, "max_show"),
-        nullableDecimal(map, "profit_loss"), nullableDecimal(map, "commission"));
+        nullableDecimal(map, "profit_loss"), nullableDecimal(map, "commission"),
+        exactInstrumentId(map), productGroup(nullableString(map, "product_group")));
   }
 
   private void requireOk(String operation) {
@@ -198,6 +199,9 @@ public final class StarbaseRestApi extends AbstractStarbaseApi {
     append(query, "currency", filter.currency());
     append(query, "kind", filter.kind() == null ? null : filter.kind().wireValue());
     append(query, "expired", filter.expired() == null ? null : filter.expired().toString());
+    append(query, "instrument_id", filter.instrumentId() == null ? null : filter.instrumentId().toString());
+    append(query, "product_group", filter.productGroup() == null ? null : filter.productGroup().name());
+    append(query, "state", filter.state() == null ? null : filter.state().wireValue());
     return query.isEmpty() ? "" : "?" + query;
   }
 
@@ -246,6 +250,14 @@ public final class StarbaseRestApi extends AbstractStarbaseApi {
       throw new IllegalArgumentException("order_id is the SBE null sentinel");
     }
     return orderId;
+  }
+
+  private static long exactInstrumentId(Map<?, ?> map) {
+    long instrumentId = requiredLong(map, "instrument_id");
+    if (instrumentId == Long.MIN_VALUE) {
+      throw new IllegalArgumentException("instrument_id is the SBE null sentinel");
+    }
+    return instrumentId;
   }
 
   private static String nullableString(Map<?, ?> map, String name) {

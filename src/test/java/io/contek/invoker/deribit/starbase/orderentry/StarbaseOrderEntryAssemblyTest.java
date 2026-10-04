@@ -391,6 +391,105 @@ public final class StarbaseOrderEntryAssemblyTest {
     }
   }
 
+  public void testVersionSeventeenCrossSessionCancellationUsesUnsolicitedOriginEvent()
+      throws Exception {
+    MutableClock clock = new MutableClock();
+    ScriptedTransport sideA = new ScriptedTransport();
+    ScriptedTransport sideB = new ScriptedTransport();
+    OpenOrderRecoveryCache recovery =
+        new OpenOrderRecoveryCache(
+            clock, OpenOrderRecoveryCache.MINIMUM_REFRESH_INTERVAL, List::of);
+    AtomicInteger orderEventCount = new AtomicInteger();
+    AtomicInteger fillEventCount = new AtomicInteger();
+    long[] lastOrderEvent = new long[3];
+    long clientOrderId = Long.MIN_VALUE + 11;
+    long orderId = Long.MIN_VALUE + 7;
+    try (StarbaseCredentials credentialsA = credentials('a');
+        StarbaseCredentials credentialsB = credentials('b');
+        StarbaseOrderEntryApi api =
+            pairedApi(clock, credentialsA, credentialsB, recovery, sideA, sideB)) {
+      api.getOrderEventsChannel().addListener((key, value, timestamp) -> {
+        lastOrderEvent[0] = key;
+        lastOrderEvent[1] = value;
+        lastOrderEvent[2] = timestamp;
+        orderEventCount.incrementAndGet();
+      });
+      api.getFillsChannel().addListener((key, value, timestamp) -> fillEventCount.incrementAndGet());
+      api.setReferenceDataReady(true);
+      api.start();
+      await(() -> sideA.outboundCount() == 1 && sideB.outboundCount() == 1);
+      assertLogon(sideA.outboundFrame(0));
+      sideA.enqueue(logonConfirmation(1, 1));
+      sideB.enqueue(logonConfirmation(1, 1));
+      await(() -> api.isReady(GatewaySide.A) && api.isReady(GatewaySide.B));
+
+      long correlation =
+          api.newLimit(clientOrderId, 501, 25_000_000_000L, 10, -2, true, 0, 0, 1, 0, 0, 0);
+      await(() -> sideA.outboundCount() == 2);
+      sideA.enqueue(newOrderResponse(2, 2, clientOrderId, correlation, orderId, 501, 10, 0));
+      await(() -> orderEventCount.get() == 1);
+      sideA.enqueue(orderFilled(3, 2, clientOrderId, orderId, 501, 8_001, 3, 3));
+      await(() -> fillEventCount.get() == 1 && api.remainingQuantity(orderId) == 7);
+
+      ByteBuffer cancellation = ordersCanceled(4, 2, clientOrderId, orderId, 501, 3);
+      cancellation.put(32 + 21 + 33, (byte) 12);
+      sideA.enqueue(cancellation);
+      await(() -> orderEventCount.get() == 2);
+      assertEquals(LocalOrderStateStore.STATE_CANCELED, api.orderStateByOrderId(orderId));
+      assertEquals(7L, api.remainingQuantity(orderId));
+      assertEquals(clientOrderId, lastOrderEvent[0]);
+      assertEquals(orderId, lastOrderEvent[1]);
+      assertEquals(18_000L, lastOrderEvent[2]);
+      assertEquals(1, fillEventCount.get());
+      assertEquals(2, sideA.outboundCount());
+      assertEquals(1, sideB.outboundCount());
+      assertTrue(api.isReady());
+    }
+  }
+
+  public void testCrossSessionCancellationCorruptIdentityAndFillTotalsCloseReadiness()
+      throws Exception {
+    assertUnsolicitedCancellationFailsClosed(502, 0, false);
+    assertUnsolicitedCancellationFailsClosed(501, 1, false);
+    assertUnsolicitedCancellationFailsClosed(501, 0, true);
+  }
+
+  private static void assertUnsolicitedCancellationFailsClosed(
+      long instrumentId, long totalFilled, boolean nullFilled) throws Exception {
+    MutableClock clock = new MutableClock();
+    ScriptedTransport sideA = new ScriptedTransport();
+    ScriptedTransport sideB = new ScriptedTransport();
+    OpenOrderRecoveryCache recovery =
+        new OpenOrderRecoveryCache(
+            clock, OpenOrderRecoveryCache.MINIMUM_REFRESH_INTERVAL, List::of);
+    AtomicInteger events = new AtomicInteger();
+    try (StarbaseCredentials credentialsA = credentials('a');
+        StarbaseCredentials credentialsB = credentials('b');
+        StarbaseOrderEntryApi api =
+            pairedApi(clock, credentialsA, credentialsB, recovery, sideA, sideB)) {
+      api.getOrderEventsChannel().addListener((key, value, timestamp) -> events.incrementAndGet());
+      api.setReferenceDataReady(true);
+      api.start();
+      await(() -> sideA.outboundCount() == 1 && sideB.outboundCount() == 1);
+      sideA.enqueue(logonConfirmation(1, 1));
+      sideB.enqueue(logonConfirmation(1, 1));
+      await(() -> api.isReady(GatewaySide.A) && api.isReady(GatewaySide.B));
+      long correlation =
+          api.newLimit(101, 501, 25_000_000_000L, 10, -2, true, 0, 0, 1, 0, 0, 0);
+      await(() -> sideA.outboundCount() == 2);
+      sideA.enqueue(newOrderResponse(2, 2, 101, correlation, 9_001, 501, 10, 0));
+      await(() -> events.get() == 1);
+      ByteBuffer cancellation = ordersCanceled(3, 2, 101, 9_001, instrumentId, totalFilled);
+      if (nullFilled) {
+        Decimal72Codec.putNull(cancellation, 32 + 21 + 24);
+      }
+      sideA.enqueue(cancellation);
+      await(() -> !api.isReady());
+      assertEquals(1, events.get());
+      assertThrows(IllegalStateException.class, () -> api.cancel(101, 501));
+    }
+  }
+
   public void testCommandRejectsCompleteCorrelationsWithoutInventingStateChanges()
       throws Exception {
     MutableClock clock = new MutableClock();
@@ -618,18 +717,22 @@ public final class StarbaseOrderEntryAssemblyTest {
       sideB.enqueue(logonConfirmation(1, 1));
       await(() -> api.isReady(GatewaySide.A) && api.isReady(GatewaySide.B));
       sideA.discardWrites();
-      for (int iteration = 0; iteration < 3_000; iteration++) {
-        api.newMarket(10_000L + iteration, 501, 5, -2, true, 0, 0, 1, 0, 0, 0);
+      for (int pass = 0; pass < 3; pass++) {
+        submitMarkets(api, 10_000L + pass * 1_000, 1_000);
       }
       long threadId = Thread.currentThread().threadId();
       long before = bean.getThreadAllocatedBytes(threadId);
-      for (int iteration = 0; iteration < 1_000; iteration++) {
-        api.newMarket(20_000L + iteration, 501, 5, -2, true, 0, 0, 1, 0, 0, 0);
-      }
+      submitMarkets(api, 20_000L, 1_000);
       assertEquals(
           0L,
           bean.getThreadAllocatedBytes(threadId) - before,
           "public new-order routing hot path allocated bytes");
+    }
+  }
+
+  private static void submitMarkets(StarbaseOrderEntryApi api, long firstClientOrderId, int count) {
+    for (int iteration = 0; iteration < count; iteration++) {
+      api.newMarket(firstClientOrderId + iteration, 501, 5, -2, true, 0, 0, 1, 0, 0, 0);
     }
   }
 
@@ -696,13 +799,13 @@ public final class StarbaseOrderEntryAssemblyTest {
 
   private static void assertLogon(ByteBuffer frame) {
     LogonDecoder.validate(frame, 0);
-    assertEquals(16, LogonDecoder.schemaVersion(frame, 0));
+    assertEquals(17, LogonDecoder.schemaVersion(frame, 0));
     assertEquals(1, LogonDecoder.resetSequenceNumber(frame, 0));
   }
 
   private static ByteBuffer logonConfirmation(long sequence, long acknowledgment) {
     ByteBuffer frame = frame(40);
-    LogonConfirmationCodec.encode(frame, 0, 1, 16, sequence, acknowledgment, 1);
+    LogonConfirmationCodec.encode(frame, 0, 1, 17, sequence, acknowledgment, 1);
     frame.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 12);
     return frame;
   }
@@ -1073,7 +1176,9 @@ public final class StarbaseOrderEntryAssemblyTest {
         true,
         null,
         null,
-        BigDecimal.ZERO);
+        BigDecimal.ZERO,
+        501,
+        ProductGroup.BTC);
   }
 
   private static void await(Check check) throws Exception {

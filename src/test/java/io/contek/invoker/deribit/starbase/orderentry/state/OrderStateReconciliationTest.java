@@ -5,6 +5,7 @@ import static io.contek.invoker.deribit.starbase.testutil.TestAssertions.assertF
 import static io.contek.invoker.deribit.starbase.testutil.TestAssertions.assertTrue;
 
 import io.contek.invoker.deribit.starbase.common.NanoClock;
+import io.contek.invoker.deribit.starbase.common.ProductGroup;
 import io.contek.invoker.deribit.starbase.orderentry.connection.ReconnectReadiness;
 import io.contek.invoker.deribit.starbase.rest.OpenOrderRecoveryCache;
 import io.contek.invoker.deribit.starbase.rest.StarbaseOpenOrder;
@@ -106,6 +107,87 @@ public final class OrderStateReconciliationTest {
     assertFalse(agedReconciliation.reconcile());
     assertEquals(OrderStateReconciliation.RESULT_SNAPSHOT_STALE, agedReconciliation.lastResult());
     assertFalse(agedReadiness.isReady());
+  }
+
+  public void testContradictoryOrUnavailableInstrumentIdentityKeepsReadinessClosed() {
+    MutableClock clock = new MutableClock();
+    LocalOrderStateStore store = new LocalOrderStateStore(2);
+    place(store, 1, 101);
+    assertMismatch(clock, store, List.of(order(101, 8)),
+        OrderStateReconciliation.RESULT_INVALID_IDENTITY);
+    assertMismatch(clock, store, List.of(order(101, Long.MIN_VALUE)),
+        OrderStateReconciliation.RESULT_INVALID_IDENTITY);
+  }
+
+  public void testMatchingInstrumentIdentityUsesFullSignedInt64Domain() {
+    for (long instrumentId : new long[] {5_000_000_123L, Long.MIN_VALUE + 7, Long.MAX_VALUE}) {
+      MutableClock clock = new MutableClock();
+      LocalOrderStateStore store = new LocalOrderStateStore(1);
+      assertTrue(store.registerPending(1, instrumentId, 1, 10, 1));
+      assertTrue(store.place(1, 1, 1, 101, 1));
+      ReconnectReadiness readiness = preparedReadiness(clock);
+      OrderStateReconciliation reconciliation = reconciliation(
+          clock, store, cache(clock, () -> List.of(order(101, instrumentId))), readiness,
+          Duration.ofMinutes(2));
+      assertTrue(reconciliation.reconcile());
+      assertTrue(readiness.isReady());
+      assertMismatch(clock, store, List.of(order(101, 7)),
+          OrderStateReconciliation.RESULT_INVALID_IDENTITY);
+    }
+  }
+
+  public void testLegacyOpenOrderConstructorCannotRestoreReadinessWithoutInstrumentIdentity() {
+    StarbaseOpenOrder legacy = new StarbaseOpenOrder(
+        101,
+        "BTC-PERPETUAL",
+        StarbaseOrderSide.BUY,
+        BigDecimal.ONE,
+        BigDecimal.ONE,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        StarbaseRestOrderState.OPEN,
+        StarbaseRestOrderType.LIMIT,
+        StarbaseTimeInForce.GTC,
+        false,
+        false,
+        false,
+        1L,
+        1L,
+        null,
+        true,
+        null,
+        null,
+        BigDecimal.ZERO);
+    assertEquals(Long.MIN_VALUE, legacy.instrumentId());
+    assertTrue(legacy.productGroup() == null);
+    MutableClock clock = new MutableClock();
+    LocalOrderStateStore store = new LocalOrderStateStore(1);
+    place(store, 1, 101);
+    assertMismatch(clock, store, List.of(legacy),
+        OrderStateReconciliation.RESULT_INVALID_IDENTITY);
+  }
+
+  public void testContradictoryRefreshDropsPreviouslyReadySession() {
+    MutableClock clock = new MutableClock();
+    LocalOrderStateStore store = new LocalOrderStateStore(1);
+    place(store, 1, 101);
+    AtomicInteger loads = new AtomicInteger();
+    OpenOrderRecoveryCache cache = cache(
+        clock, () -> List.of(order(101, loads.incrementAndGet() == 1 ? 7 : 8)));
+    ReconnectReadiness readiness = preparedReadiness(clock);
+    OrderStateReconciliation reconciliation =
+        reconciliation(clock, store, cache, readiness, Duration.ofMinutes(2));
+
+    assertTrue(reconciliation.reconcile());
+    assertTrue(readiness.isReady());
+    clock.now = Duration.ofMinutes(1).toNanos();
+
+    assertFalse(reconciliation.reconcile());
+    assertEquals(OrderStateReconciliation.RESULT_INVALID_IDENTITY, reconciliation.lastResult());
+    assertEquals(2, loads.get());
+    assertEquals(8, cache.current().get(0).instrumentId());
+    assertTrue(reconciliation.lastFailure() == null);
+    assertFalse(readiness.isReady());
   }
 
   public void testRefreshFailureDropsPreviouslyReadySessionDespiteRetainedLastGoodSnapshot() {
@@ -215,6 +297,10 @@ public final class OrderStateReconciliationTest {
   }
 
   private static StarbaseOpenOrder order(long orderId) {
+    return order(orderId, 7);
+  }
+
+  private static StarbaseOpenOrder order(long orderId, long instrumentId) {
     return new StarbaseOpenOrder(
         orderId,
         "BTC-PERPETUAL",
@@ -235,7 +321,9 @@ public final class OrderStateReconciliationTest {
         true,
         null,
         null,
-        BigDecimal.ZERO);
+        BigDecimal.ZERO,
+        instrumentId,
+        ProductGroup.BTC);
   }
 
   private static final class MutableClock implements NanoClock {

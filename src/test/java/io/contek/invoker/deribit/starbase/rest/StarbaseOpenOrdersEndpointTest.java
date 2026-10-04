@@ -8,6 +8,7 @@ import static io.contek.invoker.deribit.starbase.testutil.TestAssertions.assertT
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import io.contek.invoker.deribit.starbase.common.ProductGroup;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.InetSocketAddress;
@@ -23,6 +24,7 @@ public final class StarbaseOpenOrdersEndpointTest {
     String body = """
         {"jsonrpc":"2.0","id":1,"result":[{
           "order_id":"215074398825086978",
+          "instrument_id":5000000123,"product_group":"TIER_3",
           "instrument_name":"TREE-USD","side":"sell","price":0.0717,
           "amount":83698,"filled_amount":0.125,"average_price":0.07165,
           "order_state":"open","order_type":"limit","time_in_force":"GTC",
@@ -47,6 +49,8 @@ public final class StarbaseOpenOrdersEndpointTest {
       assertEquals(1, result.size());
       StarbaseOpenOrder order = result.getFirst();
       assertEquals(215_074_398_825_086_978L, order.orderId());
+      assertEquals(5_000_000_123L, order.instrumentId());
+      assertEquals(ProductGroup.TIER_3, order.productGroup());
       assertEquals("TREE-USD", order.instrumentName());
       assertEquals(StarbaseOrderSide.SELL, order.side());
       assertEquals(new BigDecimal("0.0717"), order.price());
@@ -71,7 +75,8 @@ public final class StarbaseOpenOrdersEndpointTest {
     }
 
     String order = """
-        {"order_id":"-9223372036854775807","instrument_name":"BTC-PERPETUAL","side":"buy",
+        {"order_id":"-9223372036854775807","instrument_id":-9223372036854775807,
+        "instrument_name":"BTC-PERPETUAL","side":"buy",
         "price":0,"amount":1,"filled_amount":0,"order_state":"open",
         "order_type":"market","time_in_force":null,"label":null}
         """;
@@ -79,6 +84,8 @@ public final class StarbaseOpenOrdersEndpointTest {
         StarbaseRestApi api = api(fixture.server())) {
       StarbaseOpenOrder decoded = api.getOpenOrders().getFirst();
       assertEquals(Long.MIN_VALUE + 1, decoded.orderId());
+      assertEquals(Long.MIN_VALUE + 1, decoded.instrumentId());
+      assertNull(decoded.productGroup());
       assertEquals(StarbaseRestOrderType.MARKET, decoded.type());
       assertNull(decoded.timeInForce());
       assertNull(decoded.postOnly());
@@ -151,6 +158,34 @@ public final class StarbaseOpenOrdersEndpointTest {
     assertInvalid(validOrder("buy", "open", "limit", "DAY"));
   }
 
+  public void testRequiredInstrumentIdentityAndOptionalGroupFailClosedOnInvalidValues()
+      throws Exception {
+    String valid = validOrderId("71");
+    assertInvalid(valid.replace("\"instrument_id\":501,", ""));
+    for (String identity : new String[] {
+        "null", "\"501\"", "501.5", "9223372036854775808", "-9223372036854775808"}) {
+      assertInvalid(valid.replace("\"instrument_id\":501", "\"instrument_id\":" + identity));
+    }
+    for (String group : new String[] {"\"OTHER\"", "\"\"", "123"}) {
+      assertInvalid(valid.replace("\"instrument_id\":501,",
+          "\"instrument_id\":501,\"product_group\":" + group + ","));
+    }
+    assertInvalidValues(valid + "," + validOrderId("72").replace("\"instrument_id\":501,", ""));
+  }
+
+  public void testFullSignedInstrumentIdentityAndExplicitNullGroupRemainExact() throws Exception {
+    for (long instrumentId : new long[] {Long.MAX_VALUE, Long.MIN_VALUE + 1, 0}) {
+      String order = validOrderId("73").replace("\"instrument_id\":501,",
+          "\"instrument_id\":" + instrumentId + ",\"product_group\":null,");
+      try (TestServer fixture = server(exchange -> respond(exchange, 200, envelope(order)));
+          StarbaseRestApi api = api(fixture.server())) {
+        StarbaseOpenOrder decoded = api.getOpenOrders().getFirst();
+        assertEquals(instrumentId, decoded.instrumentId());
+        assertNull(decoded.productGroup());
+      }
+    }
+  }
+
   public void testPropagatesAuthenticatedJsonRpcFailures() throws Exception {
     String error = "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":13009,"
         + "\"message\":\"invalid token\",\"data\":{\"scope\":\"portfolio\"}}}";
@@ -164,21 +199,21 @@ public final class StarbaseOpenOrdersEndpointTest {
   }
 
   private static String validOrder(String side, String state, String type, String tif) {
-    return "{\"order_id\":\"7\",\"instrument_name\":\"BTC-PERPETUAL\",\"side\":\""
+    return "{\"order_id\":\"7\",\"instrument_id\":501,\"instrument_name\":\"BTC-PERPETUAL\",\"side\":\""
         + side + "\",\"price\":1,\"amount\":1,\"filled_amount\":0,"
         + "\"order_state\":\"" + state + "\",\"order_type\":\"" + type
         + "\",\"time_in_force\":\"" + tif + "\"}";
   }
 
   private static String validOrderId(String orderId) {
-    return "{\"order_id\":\"" + orderId + "\",\"instrument_name\":\"BTC-PERPETUAL\","
+    return "{\"order_id\":\"" + orderId + "\",\"instrument_id\":501,\"instrument_name\":\"BTC-PERPETUAL\","
         + "\"side\":\"buy\",\"price\":1,\"amount\":1,\"filled_amount\":0,"
         + "\"order_state\":\"open\",\"order_type\":\"limit\"}";
   }
 
   private static String orderWithFlags(
       String orderId, String postOnly, String rejectPostOnly, String reduceOnly) {
-    return "{\"order_id\":\"" + orderId + "\",\"instrument_name\":\"BTC-PERPETUAL\","
+    return "{\"order_id\":\"" + orderId + "\",\"instrument_id\":501,\"instrument_name\":\"BTC-PERPETUAL\","
         + "\"side\":\"buy\",\"price\":1,\"amount\":1,\"filled_amount\":0,"
         + "\"order_state\":\"open\",\"order_type\":\"limit\","
         + "\"post_only\":" + postOnly + ",\"reject_post_only\":" + rejectPostOnly

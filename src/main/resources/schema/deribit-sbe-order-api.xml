@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- v17: submitter receives an unsolicited OrdersCanceled when another session cancels its order -->
 <sbe:messageSchema xmlns:sbe="http://fixprotocol.io/2016/sbe"
                    package="cb.deribit.gateway.sbe.codec.order"
                    id="2101"
-                   version="16"
+                   version="17"
                    semanticVersion="1.5"
                    description="Deribit SBE Order Gateway API"
                    byteOrder="littleEndian"

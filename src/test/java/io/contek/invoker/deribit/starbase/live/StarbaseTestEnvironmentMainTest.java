@@ -66,7 +66,7 @@ public final class StarbaseTestEnvironmentMainTest {
     }
   }
 
-  public void testTestnetLogonUsesVersionSixteenInHeaderAndBody() {
+  public void testTestnetLogonUsesVersionSeventeenInHeaderAndBody() {
     ByteBuffer buffer = ByteBuffer.allocateDirect(128).order(ByteOrder.LITTLE_ENDIAN);
     int encoded =
         StarbaseTestEnvironmentMain.encodeTestnetLogon(
@@ -79,9 +79,9 @@ public final class StarbaseTestEnvironmentMainTest {
 
     assertEquals(104, encoded);
     assertEquals(LogonEncoder.TEMPLATE_ID, TcpHeaderCodec.messageTypeId(buffer, 0));
-    assertEquals(16, TcpHeaderCodec.version(buffer, 0));
+    assertEquals(17, TcpHeaderCodec.version(buffer, 0));
     assertEquals(
-        16,
+        17,
         Short.toUnsignedInt(
             buffer.getShort(TcpHeaderCodec.ENCODED_LENGTH + 16 + 48 + 1)));
   }
@@ -89,9 +89,12 @@ public final class StarbaseTestEnvironmentMainTest {
   public void testLiveResponseValidationSeparatesHeaderStampFromNegotiatedVersion()
       throws Exception {
     ByteBuffer confirmation = ByteBuffer.allocateDirect(64).order(ByteOrder.LITTLE_ENDIAN);
-    LogonConfirmationCodec.encode(confirmation, 0, 30, 16, 1, 0, 10);
+    LogonConfirmationCodec.encode(confirmation, 0, 30, 17, 1, 0, 10);
     confirmation.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 12);
-    StarbaseTestEnvironmentMain.validateLogonConfirmation(confirmation, 16);
+    StarbaseTestEnvironmentMain.validateLogonConfirmation(confirmation, 17);
+    assertThrows(
+        java.io.IOException.class,
+        () -> StarbaseTestEnvironmentMain.validateLogonConfirmation(confirmation, 16));
 
     ByteBuffer heartbeat = ByteBuffer.allocateDirect(48).order(ByteOrder.LITTLE_ENDIAN);
     HeartbeatCodec.encode(heartbeat, 0, 771, 2, 1, 11);

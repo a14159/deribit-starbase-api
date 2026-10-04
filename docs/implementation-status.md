@@ -4,19 +4,121 @@
 
 | Field | Value |
 | --- | --- |
-| Overall state | **WAITING — `SPEC-04` complete; private `VAL-EC2` evidence is next** |
+| Overall state | **WAITING — private `VAL-EC2` inputs; current local protocol/REST adoption complete** |
 | Gate resolution date | 2026-08-27 |
-| Active task | None; `SPEC-04` completed locally after two fresh 18/18 source-hash matches |
+| Active task | None; `VAL-EC2` is the next task once assigned connectivity and credentials are available |
 | Blocking task | `VAL-EC2` requires the assigned private-network environment and credentials; consumer repository/guidance is absent; the REST authentication conflict remains isolated |
-| Last completed implementation task | `SPEC-04`, order-entry schema-v16 adoption |
-| Local verification | 2026-09-16: focused RED failed 6/24 as intended; focused affected PASS 48/48; stabilized assembly probes passed 20/20; final clean `./mvnw clean test` passed 352/352. |
+| Last completed implementation task | `RST-07`, current REST metadata/filter adoption and exact instrument consistency during recovery; preceded by OE-v17 `SPEC-05` |
+| Local verification | 2026-10-04: `./mvnw -B -ntp clean test` passed 363/363 with no failures, errors, or skips, including allocation checks; a second download matched all 18 audited sources and both additional cancellation references. |
 | Production readiness | **No** — downstream consumer integration, joint builds, private connectivity/authentication validation, and operations/rollback validation remain |
-| Exact next action | On the assigned private-network instance, revalidate the 18 official sources, leave state changes disabled, run the credential-safe `StarbaseTestEnvironmentMain` once, and record its complete sanitized `STARBASE_TEST` output. |
+| Exact next action | Obtain the assigned private-environment configuration/access reference, revalidate current sources, record `VAL-EC2` active, and run credential-safe validation with state changes disabled; do not guess authentication or open readiness. |
 
 `SPEC-02`, `ORD-07`, and `ASM-MD` completed on 2026-08-27 after the required restart audit
 and test-first implementation. `ASM-OE` completed on 2026-08-28 after another complete
 official-source revalidation. `SPEC-01` remains resolved by the formal clarification, but
 production readiness remains closed until consumer integration and validation complete.
+
+## 2026-10-04 restart audit and `SPEC-05` — complete
+
+The resumed restart audit downloaded all 18 required official sources. Seven hashes match
+the 2026-09-16 record and eleven changed. Production/testnet OE XMLs are byte-identical
+schema 2101/version 17/semantic version 1.5, SHA-256
+`6A721ED6161ACFEAD838ACE8D6F4F9A44347C0B293BEB99B9E9ED3D3D57B3B91`. The XML delta is
+only the schema version and a comment describing cross-session cancellation; no field,
+enum, offset, group, or message layout changed. The 2026-09-22 changelog and current cancel
+and unsolicited-event references specify that a v17 submitting session receives
+`OrdersCanceled` when another session cancels its order, while the cancelling session
+receives `CancelOrderResponse`. Earlier negotiated sessions retain the former routing.
+MD production/testnet XMLs, all three SDKs, the legacy XML bundle, and the official PCAP
+remain unchanged.
+
+`SPEC-05` updated the authoritative OE pin, negotiation ceiling,
+and non-trading runner to v17 and added deterministic valid, corrupt, and lifecycle coverage for
+unsolicited cross-session cancellation while retaining v16 per-message cancel quantities
+and all exact identity/readiness/allocation rules. `RST-07` separately adopted the
+current implemented REST endpoints' required `instrument_id`, optional `product_group`,
+and additional instrument filters. The new risk-limit endpoint is outside the five-call
+REST contract. The documented future MD snapshot-eviction flag ships disabled and does
+not change the current MD schema or snapshot behavior. The Basic-versus-Bearer conflict
+persists and must not be guessed through.
+
+Initial verification: the unchanged focused schema/session/dispatch/cancel/runner suite
+passed 29/29 with `./mvnw -B -ntp -Dtest=ProtocolSchemasTest,SessionCodecsTest,TemplateDispatchTest,CancelOrderCodecsTest,StarbaseTestEnvironmentMainTest test`.
+Local DNS resolution failed; official downloads succeeded with independently resolved
+public addresses while retaining HTTPS hostname/certificate verification. The optional
+local launch file is absent, and the required private host/client ID/client secret and MD
+interface environment settings are unset. No live runner or state-changing request has
+been executed. Only this repository is in scope; no consumer was inspected or changed.
+
+`SPEC-05` RED: the focused schema/session/dispatch/cancel/runner command ran 29 tests and
+failed the eight intended old-pin, negotiation, and version-ceiling assertions. The
+production pin/resource and non-trading runner are now updated to v17. The affected
+schema/session/dispatch/cancel/connection/authentication/assembly/runner set passed 61/61.
+New boundary tests cover v17's unchanged cancel body, earlier per-message header stamps,
+exact signed-ID unsolicited cancellation after partial fills, no local cancel request or
+invented fill, and fail-closed mismatched instrument/fill/null input. Cancelled state retains
+its last known leaves quantity for reconciliation; the new fixtures await both ready sides
+before routing. The checked-in OE XML's hash matches the authoritative source exactly.
+
+Two combined runs observed 504 bytes in the existing caller allocation probe, while the
+isolated assembly suite passed 15/15. The test now warms and measures the same submission
+helper/call site with the unchanged 3,000 warm-up and 1,000 measured commands; the normal
+affected 61/61 run then passed with zero measured bytes. No production allocation path or
+capacity changed. Changed files are the OE pin/XML, codec comments, non-trading runner,
+affected schema/session/dispatch/cancel/runner/assembly tests, and canonical docs/README.
+
+## 2026-10-04 `RST-07` current REST endpoint adoption — complete
+
+The audited OpenAPI makes open-order `instrument_id` required and includes optional
+nullable `product_group`. Both are retained without narrowing int64 identities, and exact
+order-ID reconciliation stays closed on contradictory or unavailable instrument identity.
+The optional `instrument_id`, product-group, and six-value lifecycle-state instrument
+filters are supported while preserving the existing three-argument filter API. Existing
+authentication and the conservative one-minute recovery attempt interval are unchanged.
+The risk-limit endpoint remains outside the five-call REST contract.
+
+Initial `RST-07` RED: the focused endpoint/reconciliation command failed test compilation
+with 11 expected missing accessor/constructor/lifecycle-enum errors. The public records and
+enum were extended with source-compatible legacy constructors while parser, query, and exact
+instrument-reconciliation behavior stayed unchanged for the behavioral RED.
+
+Behavioral `RST-07` RED: the focused endpoint/reconciliation suite ran 25 tests and failed
+the intended eight cases because metadata was lost, malformed/missing instrument identity
+was accepted, additional filters were omitted, and contradictory instrument IDs reopened
+readiness. The parser/query and atomic primitive instrument comparison are now corrected.
+The affected endpoint/cache/store/recovery/assembly/transport/administrative suite passed
+59/59, including zero-allocation assembly checks, with
+`./mvnw -B -ntp -Dtest=StarbaseOpenOrdersEndpointTest,StarbaseInstrumentsEndpointTest,OrderStateReconciliationTest,LocalOrderStateStoreTest,OpenOrderRecoveryCacheTest,StarbaseOrderEntryAssemblyTest,StarbaseRestTransportTest,StarbaseAdministrativeEndpointsTest test`.
+Additional legacy-constructor and previously-ready refresh-transition coverage passed
+10/10 with `./mvnw -B -ntp -Dtest=OrderStateReconciliationTest test`. Coverage also rejects
+missing/null/string/fractional/overflow/sentinel instrument IDs, unknown or wrongly typed
+product groups, and an invalid suffix after an otherwise valid snapshot prefix. Signed
+int64 boundaries, all six lifecycle filter values, query composition, optional null groups,
+legacy filter compatibility, and matching instrument IDs are verified.
+
+Changed production files: `StarbaseOpenOrder`, `StarbaseInstrumentFilter`, new
+`StarbaseInstrumentState`, `StarbaseRestApi`, `OrderStateReconciliation`, and
+`LocalOrderStateStore`. Changed tests: `StarbaseOpenOrdersEndpointTest`,
+`StarbaseInstrumentsEndpointTest`, `OrderStateReconciliationTest`, and the assembled
+order-entry recovery fixture. Only one configuration-time primitive array was added;
+normal event paths and their allocation contract are unchanged.
+
+Final verification: `./mvnw -B -ntp clean test` passed 363/363 (zero failures/errors/skips)
+using Maven 3.9.16/JDK 26.0.2.1 targeting Java 23. The normal allocation checks passed.
+`git diff --check` passed. A second fresh download confirmed 18/18 required source hashes
+and 2/2 additional cancellation-reference hashes against the 2026-10-04 audit.
+`java -cp target/test-classes:target/classes io.contek.invoker.deribit.starbase.live.StarbaseTestEnvironmentMain --help`
+passed and reports v17 and non-trading behavior; this is not live validation.
+
+Private `VAL-EC2` remains unavailable: the assigned host, client ID, secret, and MD-interface
+settings are unset and the optional ignored local launch file is absent. No private/live
+validation or state-changing request was executed. No consumer repository is in scope;
+the authentication conflict remains isolated. At this verification checkpoint no commit or
+push had been made. The requester subsequently explicitly authorized committing and
+pushing these reviewed changes; inspect Git history/tracking refs for publication state.
+The exact next action is to obtain a local configuration/access reference (not credential values in chat),
+then follow the restart procedure with state changes disabled. This does not establish
+production readiness.
 
 ## 2026-09-16 `SPEC-04` order-entry schema-v16 adoption — complete
 
@@ -462,9 +564,9 @@ below; the tests and source are the detailed executable record, while
 | `OEC-01`–`OEC-06` | 25 hardcoded order-entry session, new/amend/cancel/mass-cancel, response/reject, fill, and unsolicited lifecycle layouts with fail-closed dispatch | `codec/orderentry/*Test.java` |
 | `OET-01`–`OET-07` | Reusable TCP frame assembly; serialized partial-write handling; explicit connection loop; authentication; heartbeat/inactivity; sequence/resend; reconnect/backoff/readiness gates | `orderentry/connection/*Test.java` |
 | `ORD-01`–`ORD-06`, `CLIENT-ID-01` | Fixed correlation table; cross-session local order state; command encoder facade; exact-once fills; native signed-long and stateless canonical bidirectional String client IDs; deterministic one-send A/B routing | `orderentry/state/*Test.java`, `orderentry/command/*Test.java` |
-| `RST-01`–`RST-06` | Configured bearer/no-auth HTTP transport; instruments and registry bootstrap; fail-closed open-order parsing/flag validation; cancel-all/lock/unlock; rate-limited recovery cache | `rest/*Test.java` |
+| `RST-01`–`RST-07` | Configured bearer/no-auth HTTP transport; instruments, registry bootstrap, and current filters; exact open-order instrument/product-group metadata and fail-closed flags; cancel-all/lock/unlock; rate-limited recovery cache | `rest/*Test.java`, `OrderStateReconciliationTest` |
 | `SPEC-02`, `ORD-07` | Current production schema/REST model adoption and exact decimal REST/SBE identity reconciliation | Protocol/REST/codec tests and `OrderStateReconciliationTest` |
-| `SPEC-03`, `SPEC-04` | Per-message order-entry version compatibility through v16, versioned cancel-response quantities, and current non-trading runner negotiation | `ProtocolSchemasTest`, `TemplateDispatchTest`, `CancelOrderCodecsTest`, `StarbaseTestEnvironmentMainTest` |
+| `SPEC-03`–`SPEC-05` | Per-message order-entry version compatibility through v17, versioned cancel-response quantities, unsolicited cross-session cancellation, and current non-trading runner negotiation | `ProtocolSchemasTest`, `TemplateDispatchTest`, `CancelOrderCodecsTest`, `StarbaseOrderEntryAssemblyTest`, `StarbaseTestEnvironmentMainTest` |
 | `ASM-MD`, `ASM-OE` | Redundant public market-data and order-entry lifecycles with fail-closed recovery/readiness | `StarbaseMarketDataAssemblyTest`, `StarbaseOrderEntryAssemblyTest` |
 
 ### Official market-data fixture result
@@ -537,12 +639,15 @@ Green component/replay tests do **not** make the public APIs a complete client:
 | `SPEC-02` | DONE | Adopted applicable production OE v12-v15, corrected MD v1, and unconflicted REST model deltas; unresolved REST authentication conflict isolated with readiness closed | Current official sources; `SPEC-01` resolved |
 | `SPEC-03` | DONE | Adopted testnet OE v15 and the documented distinction between negotiated session ceiling and per-message TCP header version; corrected dispatcher and live-runner assumptions test-first | 2026-09-03 official-source audit; unchanged production OE v15 layout |
 | `SPEC-04` | DONE | Adopted production/testnet OE v16, including versioned `CancelOrderResponse` quantities, exact lifecycle reconciliation, and v16 live-runner negotiation | 2026-09-16 18/18 official-source audit and 352/352 clean local tests |
+| `SPEC-05` | DONE | Adopted OE v17 negotiation and verified current unsolicited cross-session cancellation without changing message layouts | 2026-10-04 complete official-source audit; affected 61/61 tests |
+| `RST-07` | DONE | Adopted current open-order instrument identity/product-group metadata, exact instrument consistency during recovery, and additional instrument filters without changing authentication or recovery rate limits | 2026-10-04 current OpenAPI; clean 363/363 tests |
 | `RST-06` | DONE | Reject contradictory or explicitly null REST open-order flags while retaining distinct optional `post_only`, `reject_post_only`, and `reduce_only` mappings | Unchanged current OpenAPI; fresh 18/18 source audit |
 | `ORD-07` | DONE | Parse the clarified exact ID and reconcile missing, extra, matching, duplicate, invalid, and ambiguous REST/SBE orders before restoring readiness | `SPEC-02` |
 | `ASM-MD` | DONE | Compose both A/B feed instances, arbitration, retransmit, snapshot fallback, atomic books, and health into the public market-data lifecycle | `SPEC-02`; existing MD components |
 | `ASM-OE` | DONE | Composed TCP A/B sessions, dispatcher, state, commands, routing, events, exact REST recovery, and fail-closed readiness into `StarbaseOrderEntryApi` | `ORD-07`; existing OE components |
+| `VAL-EC2` | WAITING | Run the credential-safe non-trading validator and record complete private connectivity, REST/authentication, SBE A/B, and available multicast evidence | Assigned private-network configuration and credentials; current source audit; `SPEC-05`, `RST-07` |
 | `CON-01`–`CON-08` | TODO | Validate a representative consumer dependency, independent backend selection, lifecycle holder, book/trade adapters, execution/amend/cancel/open-order paths, and health/rollback behavior | `ASM-MD`, `ASM-OE`; follow the consumer repository's own guidance |
-| `VAL-01`–`VAL-07` | TODO | Full artifact and consumer-graph builds, replay/recovery/TCP scenarios, end-to-end allocations, private smoke tests, and operations/configuration/rollback audit | `SPEC-04`; all integration work |
+| `VAL-01`–`VAL-07` | TODO | Full artifact and consumer-graph builds, replay/recovery/TCP scenarios, end-to-end allocations, private smoke tests, and operations/configuration/rollback audit | `SPEC-05`, `RST-07`; all integration work |
 
 Do not bypass the completed `ORD-07` reconciliation or any assembled readiness gate during
 consumer integration.
@@ -556,17 +661,21 @@ consumer integration.
    [schema-manifest.md](schema-manifest.md).
 3. Download the current direct production/testnet SBE XMLs, legacy XML bundle, REST
    OpenAPI/reference/authentication docs, binary reference/changelog, current order SDK,
-   current MD SDK, and legacy SDK. Compute hashes and compare them with the 2026-09-16
-   revalidation record.
-4. If the source set still matches, preserve completed `SPEC-04` and run the credential-safe
-   EC2 validation with state changes disabled. If it changed again, update the audit and
-   re-scope before protocol or live-runner changes.
-5. Preserve completed `SPEC-02`, `SPEC-03`, `SPEC-04`, `ORD-07`, `ASM-MD`, and `ASM-OE`
-   behavior. Do not guess
-   through the isolated REST authentication conflict or bypass any reference,
-   reconciliation, sequence, book, or session readiness gate.
-6. Collect the credential-safe runner's complete non-trading `STARBASE_TEST` output from
-   the private-network instance. Do not enable order submission during this phase.
+   current MD SDK, legacy SDK, and official PCAP, plus the cancellation/unsolicited-event
+   references. Compute hashes and compare them with the 2026-10-04 record in
+   [protocol-source-review.md](protocol-source-review.md).
+4. If the source set still matches, preserve completed `SPEC-05` and `RST-07`. If it changed
+   again, update the audit and re-scope before protocol or live-runner changes. If the
+   private configuration/access reference is still unavailable, record the evidence and
+   stop; do not invent endpoints or credentials.
+5. Preserve completed `SPEC-02`–`SPEC-05`, `RST-07`, `ORD-07`, `ASM-MD`, and `ASM-OE`
+   behavior. Do not guess through the isolated REST authentication conflict or bypass any
+   reference, reconciliation, sequence, book, or session readiness gate.
+6. Once assigned private connectivity and credentials are available, record `VAL-EC2`
+   active before running credential-safe validation with state changes disabled. Collect
+   the runner's complete non-trading `STARBASE_TEST` output from the private-network
+   instance. Do not enable order submission during this phase or record secrets/private
+   endpoints in tracked evidence.
 7. Do not activate `CON-01` until a representative consumer repository is explicitly in
    scope. Then inspect that repository's own guidance and git status before planning or
    editing it.

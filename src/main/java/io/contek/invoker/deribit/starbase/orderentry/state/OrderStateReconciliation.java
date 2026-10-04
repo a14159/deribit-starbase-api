@@ -30,6 +30,7 @@ public final class OrderStateReconciliation {
   private final OpenOrderRecoveryCache snapshots;
   private final ReconnectReadiness readiness;
   private final long[] snapshotOrderIds;
+  private final long[] snapshotInstrumentIds;
   private int lastResult;
   private RuntimeException lastFailure;
   private boolean requirePostDisconnectRefresh;
@@ -55,6 +56,7 @@ public final class OrderStateReconciliation {
     this.snapshots = Objects.requireNonNull(snapshots, "snapshots");
     this.readiness = Objects.requireNonNull(readiness, "readiness");
     snapshotOrderIds = new long[localOrders.capacity()];
+    snapshotInstrumentIds = new long[localOrders.capacity()];
   }
 
   public synchronized boolean reconcile() {
@@ -77,9 +79,12 @@ public final class OrderStateReconciliation {
       return false;
     }
     for (int index = 0; index < snapshot.size(); index++) {
-      snapshotOrderIds[index] = snapshot.get(index).orderId();
+      StarbaseOpenOrder order = snapshot.get(index);
+      snapshotOrderIds[index] = order.orderId();
+      snapshotInstrumentIds[index] = order.instrumentId();
     }
-    int comparison = localOrders.compareOpenOrderIds(snapshotOrderIds, snapshot.size());
+    int comparison = localOrders.compareOpenOrderIds(
+        snapshotOrderIds, snapshotInstrumentIds, snapshot.size());
     lastResult = result(comparison);
     if (lastResult != RESULT_MATCHED) {
       return false;

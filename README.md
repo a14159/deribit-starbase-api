@@ -5,12 +5,12 @@ Java 23 components for Deribit's Starbase interfaces. Maven coordinates:
 
 ## Status
 
-The local implementation is current through order-entry schema v16 and market-data schema
+The local implementation is current through order-entry schema v17 and market-data schema
 v1. It remains an unintegrated prototype—not production-ready—until downstream integration,
 private-environment validation, and operational/rollback validation complete. Reconnect
 recovery uses Deribit's clarified exact mapping from the Starbase REST decimal-string
-`order_id` to the SBE signed 64-bit `orderId`; malformed or ambiguous identities fail
-closed.
+`order_id` to the SBE signed 64-bit `orderId` and checks the required instrument identity;
+malformed, contradictory, or ambiguous identities fail closed.
 
 Project context:
 
@@ -29,8 +29,9 @@ Project context:
 - TCP framing/write/lifecycle, authentication, heartbeat, sequencing, reconnect/readiness,
   correlation, order/fill state, native-long and canonical bidirectional String client
   IDs, and one-send A/B routing.
-- Five REST utilities and an immutable, synchronous single-flight open-order cache with a
-  one-minute minimum attempt interval.
+- Five REST utilities with current instrument filters, exact open-order instrument and
+  product-group metadata, and an immutable, synchronous single-flight open-order cache
+  with a one-minute minimum attempt interval.
 - Deterministic official-PCAP replay and hot-path allocation checks.
 
 The redundant order-entry and market-data paths are composed behind public APIs. See the
@@ -50,7 +51,7 @@ Tests have no framework dependency. Surefire's auto-detected
 zero-argument `test*` methods; local `TestAssertions` supplies assertions. The baseline
 test verifies Java assertions are enabled.
 
-The 2026-09-16 clean run passed 352/352 tests. This proves local behavior only; it does not
+The 2026-10-04 clean run passed 363/363 tests. This proves local behavior only; it does not
 establish production readiness or replace the credential-safe private-environment
 validator.
 

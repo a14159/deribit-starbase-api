@@ -388,13 +388,15 @@ public final class LocalOrderStateStore {
     return states.length;
   }
 
-  synchronized int compareOpenOrderIds(long[] snapshotOrderIds, int count) {
-    if (snapshotOrderIds == null || count < 0 || count > snapshotOrderIds.length) {
+  synchronized int compareOpenOrderIds(
+      long[] snapshotOrderIds, long[] snapshotInstrumentIds, int count) {
+    if (snapshotOrderIds == null || snapshotInstrumentIds == null || count < 0
+        || count > snapshotOrderIds.length || count > snapshotInstrumentIds.length) {
       throw new IllegalArgumentException("invalid open-order snapshot identity range");
     }
     for (int index = 0; index < count; index++) {
       long orderId = snapshotOrderIds[index];
-      if (orderId == Long.MIN_VALUE) {
+      if (orderId == Long.MIN_VALUE || snapshotInstrumentIds[index] == Long.MIN_VALUE) {
         return RECONCILIATION_INVALID_IDENTITY;
       }
       for (int prior = 0; prior < index; prior++) {
@@ -411,6 +413,9 @@ public final class LocalOrderStateStore {
       }
       if (!isLive(states[slot])) {
         return RECONCILIATION_REST_ONLY;
+      }
+      if (instrumentIds[slot] != snapshotInstrumentIds[index]) {
+        return RECONCILIATION_INVALID_IDENTITY;
       }
     }
     for (int slot = 0; slot < states.length; slot++) {

@@ -114,7 +114,11 @@ Never auto-close idle sessions: disconnect can cancel live orders. Unexpected di
 
 Maintain one primitive cross-session order store. De-duplicate immediate and later
 unsolicited fills in one exact match-ID domain; retain origin session for cross-session
-lifecycle. Expose schema-native signed-long client-order IDs directly, reserving only the
+lifecycle. The current pinned v17 session receives unsolicited `OrdersCanceled` on the
+submitting session when another session cancels its order. Require exact order/client/
+instrument identity and cumulative filled quantity before applying that event; no local
+cancel correlation is required and no fill is synthesized. Expose schema-native signed-long
+client-order IDs directly, reserving only the
 SBE int64 null value. The String compatibility path uses the pinned generator alphabet
 `0-9a-zA-Z-_` and stateless positional base-64 conversion modulo `2^64 - 1`; never use a
 bounded allocation table. Map the residues bijectively onto every signed-long value except
@@ -145,6 +149,14 @@ identity and keep readiness closed. The public OpenAPI's UUID wording was explic
 identified by Deribit as a documentation error; do not treat the value as a UUID or as the
 unrelated currency-prefixed legacy `order_id`. Instrument/side/price/amount/time tuples and
 optional labels remain invalid substitutes.
+
+Every parsed open order must also retain its required exact int64 `instrument_id` and
+optional nullable `product_group`. The instrument ID must be present, non-sentinel, and
+match the local SBE order identified by `order_id`; it is a consistency check, not an
+alternative identity bridge. A contradictory refreshed snapshot closes previously ready
+sessions. Source-compatible legacy open-order constructors mark instrument identity
+unknown and cannot satisfy reconciliation. Instrument discovery supports the documented
+currency/kind/expired, instrument-ID, product-group, and lifecycle-state filters.
 
 ## Downstream consumer integration contract
 

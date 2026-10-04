@@ -1,198 +1,178 @@
 # Starbase protocol source review
 
-Reviewed and revalidated 2026-09-16. Machine-verifiable pins and checked-in schemas are
-recorded under FND-03 in [schema-manifest.md](schema-manifest.md).
+Reviewed and revalidated 2026-10-04. Checked-in schemas and the implemented template map
+are recorded in [schema-manifest.md](schema-manifest.md); mutable work and verification
+evidence belong in [implementation-status.md](implementation-status.md).
 
-The 2026-09-16 restart audit downloaded all 18 required official artifacts and references.
-Seven hashes remain unchanged and eleven changed. Production and testnet order entry are
-now byte-identical schema 2101/version 16/semantic version 1.5. Relative to the prior v15
-pin, the only XML wire change appends required `quantity` and `totalFilled` `Decimal72`
-fields to `CancelOrderResponse` (220), at body offsets 56 and 65, with
-`sinceVersion="16"`. Both market-data XMLs remain byte-identical schema 2102/version
-1/semantic version 1.0. The latest dated changelog entry is 2026-09-16; its FIX Drop Copy
-change is out of scope, while the 2026-09-10 entry is the authority for the v16 order-entry
-delta. `SPEC-04` adopts that delta without inferring any additional protocol behavior.
+The restart audit downloaded all 18 required official inputs byte-for-byte. Seven hashes
+match the 2026-09-16 audit and eleven changed. Production and testnet OE are byte-identical
+schema 2101/version 17/semantic version 1.5. Relative to the checked-in v16 source, the XML
+only changes the schema version and adds a comment describing unsolicited cross-session
+cancellation. No message field, enum, offset, block length, or repeating group changed.
+Production/testnet MD remain byte-identical schema 2102/version 1/semantic version 1.0.
+The legacy XML bundle, all three SDKs, and the official PCAP remain unchanged.
 
-The 2026-08-27 review records a formal Deribit support clarification for the exact endpoint
-that had blocked implementation. Starbase REST `GET /api/v2/private/get_open_orders`
-returns the SBE `orderId` as a base-10 JSON string in `order_id`; `Long.parseLong` yields
-the exact signed `int64` value. Deribit explicitly identified the current OpenAPI's UUID
-description as a documentation error. This resolves `SPEC-01`. The restart audit
-re-downloaded the required sources and completed `SPEC-02`; the 2026-08-28 audit
-re-downloaded them again with unchanged hashes. `ORD-07` and both public assembly tasks
-are complete locally.
+The latest dated changelog entry is 2026-09-24. The 2026-09-22 entry documents OE v17 and
+current REST instrument filters/open-order metadata. The 2026-09-24 entry adds a read-only
+risk-limit endpoint and specifies a ten-per-minute, per-portfolio/per-gateway open-order
+limit. The implementation retains its conservative one-minute minimum recovery interval.
+The new risk-limit endpoint is outside the existing five-call REST contract.
 
-## Authoritative sources
+## Authoritative downloads and SHA-256
 
-| Source | URL | Reviewed result |
+Hashes below cover the direct XML/JSON/archive/PCAP bytes and the indicated Markdown
+representations, not rendered HTML. XML governs wire layout when prose differs. The direct
+production XML links in the Binary API Reference remain authoritative; legacy bundles and
+SDKs must not be used to infer current layouts.
+
+| Source and reviewed result | Download URL | SHA-256 |
 | --- | --- | --- |
-| Starbase overview | https://docs.deribit.com/starbase/overview | Separate low-latency stack; standard APIs remain but omit live Starbase open orders. |
-| Infrastructure and compatibility | https://docs.deribit.com/starbase/connectivity-best-practices | Private-only; separate credentials/sessions; SBE OE, SBE L3 MD/retransmit, and REST are independent. |
-| Binary API reference | https://docs.deribit.com/starbase/binary-api-reference | Current Markdown SHA-256 `3D1C446CE3426C14DF89ED02FB133DDF7EC4AE220F91C74846B37C135A5EBB0C`; production and testnet OE v16, MD v1, and order SDK v14. A server message's header `version` is the newest schema version at which that message changed, capped by the negotiated session version; for example, a v16 session can receive `LogonConf` with header version 12. |
-| Gateway connectivity | https://docs.deribit.com/starbase/gateway-connectivity | Production: hot-hot A/B pairs for BTC, ETH, Tier 2/3; test: one OE pair. Endpoints are configuration only. |
-| Multicast channels and subscription | https://docs.deribit.com/starbase/multicast-channels and https://docs.deribit.com/starbase/multicast-subscription-guide | Each product group requires A/B incremental and snapshot feeds. |
-| Order-book maintenance, trades, retransmit | https://docs.deribit.com/starbase/order-book-maintenance, https://docs.deribit.com/starbase/trades, and https://docs.deribit.com/starbase/retransmit-gateway | L3 sequencing is authoritative; trade-summary context and retransmit paging/rejects apply. |
-| Order/session operations | https://docs.deribit.com/starbase/session-messages, https://docs.deribit.com/starbase/placing-new-order, https://docs.deribit.com/starbase/amending-order, https://docs.deribit.com/starbase/cancelling-order, and https://docs.deribit.com/starbase/mass-cancel | Session, command, response/reject, immediate-fill, and unsolicited-event behavior revalidated. |
-| Legacy SBE XML bundle | https://statics.deribit.com/files/deribit-sbe-xmls.zip | Still SHA-256 `4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42`, containing the older v12 order XML; it is no longer the current order-entry source. |
-| Current production order-entry XML | https://docs.deribit.com/specifications/deribit-sbe-xmls/deribit-sbe-order-api.xml | Schema 2101/version 16/semantic version 1.5, SHA-256 `64EBC71CCAC3A01203977718CD524C9476D311ADFF01049312CA0778E57CF559`. |
-| Current testnet order-entry XML | https://docs.deribit.com/specifications/deribit-sbe-xmls/deribit-sbe-order-api-testnet.xml | Schema 2101/version 16/semantic version 1.5, SHA-256 `64EBC71CCAC3A01203977718CD524C9476D311ADFF01049312CA0778E57CF559`; byte-identical to production as of 2026-09-16. |
-| Current production market-data XML | https://docs.deribit.com/specifications/deribit-sbe-xmls/deribit-sbe-market-data-api.xml | Schema 2102/version 1/semantic version 1.0, SHA-256 `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`. |
-| Current testnet market-data XML | https://docs.deribit.com/specifications/deribit-sbe-xmls/deribit-sbe-market-data-api-testnet.xml | Byte-identical to production, SHA-256 `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`. |
-| Starbase REST OpenAPI | https://docs.deribit.com/specifications/starbase_rest_openapi.json | OpenAPI 3.0.3/API 2.0, SHA-256 `D53EC179867A5A9C7A982A8133642B86D8A6C9AA59ED18443410E9822C37671C`; still incorrectly describes `order_id` as UUID-style and still specifies Bearer authentication for private endpoints. |
-| Deribit support clarification | Private support response provided by the requester, dated 2026-08-27 | Specifically confirms Starbase REST `order_id` is the decimal string form of SBE `orderId`, supplies a representative numeric-string response, and says the UUID OpenAPI wording is an error to be corrected. No personal or ticket metadata is retained here. |
-| Legacy Starbase SDK | https://statics.deribit.com/files/starbase-deribit-sdk.zip | Still version 0.5.1, SHA-256 `57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C`; it declares schema version 11. |
-| Current order-entry SDK | https://docs.deribit.com/starbase/starbase-deribit-order-sdk-14.0.zip | Schema version 14/semantic version 1.5, SHA-256 `25B23E41E1FB92E290DD6D4E4124A9A69C2E215274C6957C22DE4BCFB8D6392D`; it is behind production v16. |
-| Current market-data SDK | https://docs.deribit.com/starbase/starbase-deribit-md-sdk-1.0.zip | Corrected schema version 1/semantic version 1.0, SHA-256 `6E235798278243307F57EE88F2E11FBE7C01B24E6423D08149D6881F48446EC4`. |
-| Standard JSON-RPC and Drop Copy identity guidance | https://docs.deribit.com/api-reference/trading/private-get_open_orders and https://docs.deribit.com/starbase/fix-drop-copy-api | Standard records' numeric `starbase_order_id` and FIX Tag 37 equal SBE `orderId`; standard `get_open_orders*` still does not provide the Starbase live-order snapshot. This corroborates but is not needed for the clarified Starbase REST mapping. |
-| Starbase changelog | https://docs.deribit.com/changelogs/starbase | Current Markdown SHA-256 `D62065D090DF6E8D694CADF6CFE545981EF7C1EDFAE26A81C58E8BF8D8421D7C`; the 2026-09-10 entry documents OE v16 on production and testnet, and the 2026-09-16 FIX Drop Copy change is out of scope. |
+| Production order-entry XML: schema 2101/v17/semantic 1.5 | https://docs.deribit.com/specifications/deribit-sbe-xmls/deribit-sbe-order-api.xml | `6A721ED6161ACFEAD838ACE8D6F4F9A44347C0B293BEB99B9E9ED3D3D57B3B91` |
+| Testnet order-entry XML: byte-identical to production | https://docs.deribit.com/specifications/deribit-sbe-xmls/deribit-sbe-order-api-testnet.xml | `6A721ED6161ACFEAD838ACE8D6F4F9A44347C0B293BEB99B9E9ED3D3D57B3B91` |
+| Production market-data XML: schema 2102/v1/semantic 1.0 | https://docs.deribit.com/specifications/deribit-sbe-xmls/deribit-sbe-market-data-api.xml | `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE` |
+| Testnet market-data XML: byte-identical to production | https://docs.deribit.com/specifications/deribit-sbe-xmls/deribit-sbe-market-data-api-testnet.xml | `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE` |
+| Legacy XML bundle: older OE v12, audit input only | https://statics.deribit.com/files/deribit-sbe-xmls.zip | `4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42` |
+| Starbase REST OpenAPI: OpenAPI 3.0.3/API 2.0 | https://docs.deribit.com/specifications/starbase_rest_openapi.json | `6C44CD19E63D61C3D112F161C7017CC3E4606F89D656E1D059DD5B65615A5B5A` |
+| REST Order Gateway Authentication | https://docs.deribit.com/starbase/rest-authentication.md | `4854C66E25E7B33EE8900C8601F724B19B02CA00FD55C0CF21087BEF77D3626C` |
+| REST Get Open Orders | https://docs.deribit.com/api-reference/trading/get-open-orders.md | `79585FFEF7F68D08226008476D543D89AB414AEB392EE28A5A9EB64D8DD1A6DF` |
+| REST List Instruments | https://docs.deribit.com/api-reference/market-data/list-instruments.md | `652EEC41C90F794742769C794C1FB2CFDB9D7E17A745F21B716E8260FC31E56C` |
+| REST Mass Cancel | https://docs.deribit.com/api-reference/portfolio-management/mass-cancel.md | `6534C1462C74CC919D3B2CF6BB36B817CC2F088EA254154BB0D0A90E2BB75E84` |
+| REST Lock Portfolio | https://docs.deribit.com/api-reference/portfolio-management/lock-portfolio.md | `BC88740CAC1959DD94ED982A717F7C5A684BF3E04D59DC13289923CB070F0527` |
+| REST Unlock Portfolio | https://docs.deribit.com/api-reference/portfolio-management/unlock-portfolio.md | `A7046EFF45D2EF570AE38632344DBDA4708F6821F5782AD6585EC6398016C90C` |
+| Binary API Reference | https://docs.deribit.com/starbase/binary-api-reference.md | `E8CE9C610CF73D1164DCB17E5D00F79541AE040881A0AAE2EFF267640D0DF078` |
+| Starbase changelog | https://docs.deribit.com/changelogs/starbase.md | `DB93501D6C8B168E9B834586A92A29424F72A47B215DF176C19F86A2E9BC021E` |
+| Order-entry SDK: v14/semantic 1.5, audit input only | https://docs.deribit.com/starbase/starbase-deribit-order-sdk-14.0.zip | `25B23E41E1FB92E290DD6D4E4124A9A69C2E215274C6957C22DE4BCFB8D6392D` |
+| Market-data SDK: v1/semantic 1.0 | https://docs.deribit.com/starbase/starbase-deribit-md-sdk-1.0.zip | `6E235798278243307F57EE88F2E11FBE7C01B24E6423D08149D6881F48446EC4` |
+| Legacy SDK: 0.5.1, schema v11, audit input only | https://statics.deribit.com/files/starbase-deribit-sdk.zip | `57BB9D0861943F88D7B5A8FCE2D4DF7F19EE66AB7C8E8DB98C39A1C1C96BFC8C` |
+| Official market-data PCAP: 5,344,700 bytes | https://statics.deribit.com/files/starbase-market-data.pcap | `980B9D78E46057A5271CB1F99184A82920A5964A0DA959276FACAF4FC8F869CF` |
 
-The direct production XML links in the binary reference are authoritative for current wire
-layout. The legacy ZIP and SDK remain audit inputs only and must not be used to infer the
-current schema.
+The v17 behavior was additionally checked against these current official references:
 
-### 2026-09-16 restart-session REST/reference hashes
+| Source | Download URL | SHA-256 |
+| --- | --- | --- |
+| Cancelling an Order | https://docs.deribit.com/starbase/cancelling-order.md | `1EDC382B19652D56CA8E096124386A38FD2622B3EEB295F6AE3A4CA2A452200E` |
+| Unsolicited Events | https://docs.deribit.com/starbase/unsolicited-events.md | `3C5410EE1BA3AE0C275051C2F075663B980E3518FE69326B70F744421228F44E` |
 
-The required Markdown/JSON references were re-downloaded byte-for-byte on 2026-09-16.
-All current hashes are recorded below; the authenticated REST pages still conflict between
-the dedicated Basic-authentication guide and the Bearer-authenticated OpenAPI.
+Related official concept references remain the
+[overview](https://docs.deribit.com/starbase/overview),
+[connectivity guidance](https://docs.deribit.com/starbase/connectivity-best-practices),
+[gateway connectivity](https://docs.deribit.com/starbase/gateway-connectivity),
+[multicast channels](https://docs.deribit.com/starbase/multicast-channels),
+[subscription guide](https://docs.deribit.com/starbase/multicast-subscription-guide),
+[book maintenance](https://docs.deribit.com/starbase/order-book-maintenance),
+[trades](https://docs.deribit.com/starbase/trades),
+[retransmit](https://docs.deribit.com/starbase/retransmit-gateway),
+[session messages](https://docs.deribit.com/starbase/session-messages),
+[new orders](https://docs.deribit.com/starbase/placing-new-order),
+[amends](https://docs.deribit.com/starbase/amending-order), and
+[mass cancel](https://docs.deribit.com/starbase/mass-cancel).
 
-| Source | SHA-256 |
-| --- | --- |
-| Starbase REST OpenAPI | `D53EC179867A5A9C7A982A8133642B86D8A6C9AA59ED18443410E9822C37671C` |
-| REST authentication guide | `A87531947508B0576DD2975EE0F9FC07572496D64830B486AAFDBA21D1DD90B6` |
-| REST get-open-orders reference | `95818D795D1E16896C1C21144C92F23A0ADA83BEA64C3BBE5DBEA252768C093B` |
-| REST list-instruments reference | `BF5606AE5DDD03E1C06CA3EDC7328163B39F5B6810A405A08530FC7BB1B34C67` |
-| REST mass-cancel reference | `CC589A68401EC081B97366638D32A2574F9B776A46907C044DC766DBB2EF3651` |
-| REST lock-portfolio reference | `D04159091A734AD5CCAC4D57DC4B136ED6578BF3676C9D8CA8CC75B84F966916` |
-| REST unlock-portfolio reference | `06C6BE9A33AB39B003627ED0A737F78E3E63B3BE0F7DDFC7226F0E035F89A3E5` |
-| Binary API reference | `3D1C446CE3426C14DF89ED02FB133DDF7EC4AE220F91C74846B37C135A5EBB0C` |
-| Starbase changelog | `D62065D090DF6E8D694CADF6CFE545981EF7C1EDFAE26A81C58E8BF8D8421D7C` |
-| Official market-data PCAP | `980B9D78E46057A5271CB1F99184A82920A5964A0DA959276FACAF4FC8F869CF` |
+## Current order-entry behavior and pins
 
-## Current upstream schema delta and gate decision
-
-The 2026-09-16 audit found one production XML wire-layout delta. `CancelOrderResponse`
-(220) grows from a 56-byte body through v15 to a 74-byte body at v16 by appending
-`quantity` and `totalFilled`. Both values are required `Decimal72` fields; cancelled/leaves
-quantity is exactly `quantity - totalFilled`. `SPEC-04` pins v16, keeps the legacy layout
-for earlier per-message stamps, validates the new layout before dispatch, reconciles both
-values with local order state before applying cancellation, and moves the non-trading live
-runner's negotiated ceiling and phase labels to v16. No market-data codec changed.
-
-The Binary API Reference continues to distinguish the v16 session ceiling
-negotiated in `Logon`/`LogonConf` from each inbound message's header `version`. Server
-messages carry the newest schema version at which that particular message changed, capped
-by the session ceiling. The former global order-entry dispatcher accepted only header
-versions 11 through 15, even though current-layout messages can legitimately carry earlier
-stamps; `OrderPlaced`, for example, last changed at version 8. The former live runner also
-expected `LogonConf` and `Heartbeat` header versions to equal the negotiated session
-version, contrary to the reference's explicit negotiated/header-version distinction.
-Completed `SPEC-03` replaces those assumptions with bounds-checked per-message version
-handling. `SPEC-04` updates the negotiated ceiling and testnet probe to v16. XML continues
-to govern every layout, and future versions above the negotiated/pinned ceiling still fail
-closed.
-
-The current direct production order-entry XML is schema 2101/version 16/semantic version
-1.5, SHA-256 `64EBC71CCAC3A01203977718CD524C9476D311ADFF01049312CA0778E57CF559`. Relative to
-the implemented v11 schema, it adds `Logon.schemaVersion` (field 67, since version 12),
-`LogonConf.schemaVersion` (field 6, since version 12), session-wide
-`Logon.cancelOnDisconnect` (field 68, since version 13), and the `GATEWAY_NOT_ACTIVE`
-reject reason (6, since version 14). Version 15 adds
-`MMP_MIN_FREEZE_TIME_NOT_ELAPSED` to `OrderRejectReason` (30) and
-`MassQuoteRejectReason` (9). Version 16 appends the two `CancelOrderResponse` quantities
-described above. `OrderId` and `ClientOrderId` remain `int64`.
-
-The current market-data XML is schema 2102/version 1/semantic version 1.0, SHA-256
-`6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`. Its 2026-08-07
-correction adds `IndexInfo` (template 12), changes `InstrumentInfo` (template 14) to carry
-only price bands and mark price, and adds optional `openInterest` to `InstrumentRef`
-(template 15). The protocol version did not change despite the market-data wire-layout
-correction, so version dispatch cannot distinguish the old and corrected layouts.
-
-The current public Starbase REST OpenAPI still says `order_id` is UUID-style and shows a UUID
-example. The formal support clarification explicitly corrects that statement for the
-Starbase REST open-order endpoint: the actual value is the base-10 string serialization of
-SBE `orderId`. The representative value `"215074398825086978"` therefore parses directly
-to the exact local key; no FIX component, label/tuple match, or UUID conversion is needed.
-This resolves the external identity gate. `SPEC-02` adopted the then-current v15 XML,
-corrected MD XML, and unconflicted REST model deltas. The SDK version mismatch and REST
-authentication-source conflict remain recorded limitations, not reasons to keep `SPEC-01`
-open.
-
-## Implemented schema pins
-
-The following are the checked-in references and hardcoded-codec pins after `SPEC-04`.
-
-| Schema | Schema ID | Version | Semantic version | XML SHA-256 |
+| Schema | Schema ID | Version | Semantic version | Checked-in XML SHA-256 |
 | --- | ---: | ---: | ---: | --- |
-| Order entry (`deribit-sbe-order-api.xml`) | 2101 | 16 | 1.5 | `64EBC71CCAC3A01203977718CD524C9476D311ADFF01049312CA0778E57CF559` |
-| Market data (`deribit-sbe-market-data-api.xml`) | 2102 | 1 | 1.0 | `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE` |
+| Order entry | 2101 | 17 | 1.5 | `6A721ED6161ACFEAD838ACE8D6F4F9A44347C0B293BEB99B9E9ED3D3D57B3B91` |
+| Market data | 2102 | 1 | 1.0 | `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE` |
 
-The current testnet order-entry XML is now byte-identical to the production pin. The
-official order-entry SDK remains version 14 and therefore remains an audit input rather
-than the authority for v16 behavior.
+OE v17 changes cancellation delivery: when another session cancels an order, the submitting
+session negotiated at v17 or later receives unsolicited `OrdersCanceled` (310), while the
+cancelling session receives `CancelOrderResponse` (220). Sessions negotiated below v17
+retain the previous routing, where both sessions receive the cancel response. The public
+client negotiates v17 and continues to send its own amend/cancel commands to the stored
+origin session exactly once. Unsolicited cancellation requires no local cancel correlation;
+the exact order/client/instrument identity and cumulative filled quantity must match local
+state before cancellation and event publication.
 
-Required MD IDs match XML, including `IndexDefinition` (11), `IndexInfo` (12), and
-`BlockTrade` (33); `BlockTrade` remains fail-closed until correct trade behavior needs it.
-OE v16 includes `CancelOrderByIdRequest` (125), speed-bump `OrderPlaced` (312), and
-required session/order/fill/cancel families. Mass quote and FIX Drop Copy remain out of
-scope.
+The negotiated `Logon`/`LogonConf.schemaVersion` remains distinct from each server message's
+header `version`. The header carries that message's newest last-change version, capped at
+the negotiated ceiling; a v17 session can receive `LogonConf` at header v12, `Heartbeat` at
+v0, `OrderPlaced` at v8, and `CancelOrderResponse` at v16. Keep per-message compatible
+floors and exact body/group validation; versions above the pinned/negotiated ceiling fail
+closed. No message layout was changed by the v17 adoption.
 
-## REST rollout scope
+The v16 cancel-response extension remains required at header version 16 and later:
+`quantity` and `totalFilled` are required `Decimal72` fields at body offsets 56 and 65.
+Bodies through v15 are exactly 56 bytes; v16/v17 bodies are exactly 74 bytes. Leaves
+quantity is `quantity - totalFilled`. The assembled lifecycle checks the exact exponent,
+original quantity, and remaining quantity; mismatches fail closed without synthesizing
+fills. Signed 64-bit order/client/instrument/match IDs are never truncated.
 
-RST-01 was revalidated from the current OpenAPI on 2026-09-16. It uses plain `http://`
-gateway URLs and still specifies Bearer authentication; public instruments explicitly has
-no security. The dedicated REST Order Gateway Authentication guide, SHA-256
-`A87531947508B0576DD2975EE0F9FC07572496D64830B486AAFDBA21D1DD90B6`, specifies HTTP
-Basic on every request. This conflict requires clarification or live evidence before
-changing authentication behavior and belongs to `SPEC-02`. All five calls are HTTP `GET`.
-All responses use JSON-RPC 2.0
-envelopes; failures contain numeric `code`, string `message`, and optional untyped `data`.
-The OpenAPI defines exactly:
+The earlier v12-v15 negotiation, session cancel-on-disconnect, and reject-enum additions
+remain adopted. The official order-entry SDK is still v14 and cannot establish v17
+semantics. Mass quote, FIX, FIX Drop Copy, generated codecs, and runtime XML parsing remain
+outside scope. The XML still has no per-order reduce-only field; reject unsupported
+submission semantics or route the whole operation through the configured standard backend.
 
-- `GET /api/v2/public/get_instruments`
-- `GET /api/v2/private/get_open_orders`
-- `GET /api/v2/private/cancel_all`
-- `GET /api/v2/private/lock_portfolio`
-- `GET /api/v2/private/unlock_portfolio`
+## Exact REST/SBE identity clarification
 
-`SPEC-02` did not guess between the conflicting authentication sources: it preserves the
-existing OpenAPI-shaped Bearer/private and unauthenticated-instruments behavior and keeps
-readiness closed pending live evidence or clarification. REST is private-connectivity
-control/recovery, never live ordering. The current `get_open_orders` page scopes rate
-limiting per portfolio and returns HTTP 429 when exceeded; the implementation retains its
-conservative one-minute minimum attempt interval.
+The formal Deribit support clarification supplied by the requester on 2026-08-27 resolves
+`SPEC-01`: Starbase REST `GET /api/v2/private/get_open_orders` returns the exact SBE
+`orderId` as a base-10 JSON string in `order_id`. Its representative value,
+`"215074398825086978"`, parses directly with `Long.parseLong`. Deribit explicitly identified
+the public OpenAPI's UUID wording as a documentation error. That wording and UUID example
+remain in the current OpenAPI; they do not supersede the formal clarification.
 
-## Revalidated safety and compatibility decisions
+Missing, malformed, out-of-range, SBE-null-sentinel, duplicate, or ambiguous identities
+must keep recovery/readiness closed. Do not use UUID conversion, instrument/side/price/
+amount/time tuples, labels, or the unrelated currency-prefixed legacy identifier. Standard
+JSON-RPC's numeric `starbase_order_id` and FIX Tag 37 corroborate the SBE identity but do not
+provide the Starbase live open-order recovery snapshot. Private support metadata and any
+undocumented extra response fields are not retained or inferred into production behavior.
 
-- Cancel-on-disconnect is mandatory/session-scoped: disconnect makes the session
-  unavailable, reconnect does not restore orders, and origin session survives cross-session
-  amend/cancel.
-- One API key permits one connection/gateway. Hot-hot A/B have independent limits and may
-  both carry flow, but each order is sent once.
-- Standard WebSocket/JSON-RPC and Starbase credentials/events differ. History, positions,
-  balances, and tickers stay in `deribit-api`; live Starbase open orders use local SBE state
-  plus exact Starbase REST reconciliation.
-- The implemented OE XML v16 has no reduce-only field despite amend prose. XML governs
-  wire layout: reject reduce-only or route the whole operation to the configured standard
-  backend; never drop it.
-- Code uses pinned XML names/IDs; friendly doc aliases create no templates. FIX/FIX Drop
-  Copy remain unimplemented.
-- Starbase REST open-order `order_id` parses directly to SBE `orderId` under the formal
-  2026-08-27 clarification. Missing/malformed/out-of-range/sentinel or duplicate identities
-  fail reconciliation closed; tuple/label matching remains forbidden.
+## Current REST contract and unresolved authentication
 
-## Restartable implementation subset
+The dedicated authentication guide still specifies HTTP Basic on every request, while the
+current OpenAPI still specifies Bearer on private endpoints and no authentication on public
+instruments. Requests use plain HTTP over private connectivity. This source conflict
+requires formal clarification or private live evidence before changing authentication.
+The implementation and runner preserve the isolated existing behavior; readiness must not
+be guessed open.
 
-Hardcoded/bounds-checked codecs, state/transport, and the locally assembled redundant public
-APIs cover required session/order/lifecycle/fill, MD reference/L3/trade/snapshot/retransmit,
-L3 reconstruction, TCP lifecycle, exact REST reconciliation, and five REST utilities. See
-the [template manifest](schema-manifest.md) and [component status](implementation-status.md).
-Downstream adapters and private live validation have not begun. FIX,
-generated/runtime-parsed codecs, and mass quote remain out of scope.
+The five implemented utility calls remain HTTP `GET` with JSON-RPC 2.0 envelopes:
 
-Before any later codec edit, re-download all official sources and compare versions/hashes.
-The identity gate, `SPEC-02`, `ORD-07`, local public assembly, `SPEC-03`, and `SPEC-04` are
-complete. `VAL-EC2` is the exact next action. Runtime order readiness still requires exact fresh
-reconciliation plus every documented session, sequence, reference, and connection
-prerequisite.
+- `/api/v2/public/get_instruments`
+- `/api/v2/private/get_open_orders`
+- `/api/v2/private/cancel_all`
+- `/api/v2/private/lock_portfolio`
+- `/api/v2/private/unlock_portfolio`
+
+The current OpenAPI requires `instrument_id` as an int64 on every open order and includes
+optional nullable `product_group`. The instruments endpoint combines its existing
+currency/kind/expired filters with optional int64 `instrument_id`, product group, and
+lifecycle `state` (`open`, `inactive`, `settlement`, `delivered`, `locked`, `halted`).
+The implementation retains this metadata and supports all these filters. Exact instrument
+identity is checked against local SBE state during order-ID reconciliation; missing,
+sentinel, or contradictory values fail closed without any tuple fallback. Optional order
+flags remain distinct:
+`post_only` and `reject_post_only` are mutually exclusive, and per-order `reduce_only`
+is observation-only for the SBE client. Failure responses retain numeric error code,
+message, and optional data.
+
+REST remains blocking bootstrap/recovery/administration rather than live ordering or
+market data. Open-order snapshots remain immutable, cached, single-flight, and attempted
+no faster than the retained one-minute interval. Current upstream allows ten requests per
+minute per portfolio on each gateway and returns HTTP 429 with retry information; the A/B
+counters are independent.
+
+## Market data and remaining validation boundaries
+
+MD layouts remain v1, including `IndexInfo` (12), corrected `InstrumentInfo` (14), and
+optional open interest on `InstrumentRef` (15). The unchanged official PCAP remains proof
+for unaffected messages but has no templates 12/14/15. Golden/boundary fixtures validate
+those reference layouts. `BlockTrade` (33) remains fail-closed.
+
+The 2026-09-22 announcement describes optional future eviction of delivered instruments
+from snapshot caches. It explicitly ships disabled and depends on two other emission
+flags. It does not change the current MD schema or snapshot contents; no new market-data
+behavior is inferred from it.
+
+One API key permits one connection per gateway. A/B routing sends each order once and
+never retries an ambiguous send on its peer. Session disconnect can cancel orders, so
+transport lifetime stays explicit. Reference, sequence, connection, book, and exact
+reconciliation gates remain independent. Standard history, positions, balances, and
+tickers remain in `deribit-api`.
+
+Consumer adapters, joint builds, private lifecycle validation, and operations/rollback
+validation remain pending. Before later codec/protocol edits, download the complete source
+set again and compare these hashes. The current public APIs and source adoption do not
+establish production readiness.

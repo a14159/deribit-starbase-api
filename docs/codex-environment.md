@@ -6,7 +6,7 @@ Keep project state/build instructions portable. Put machine paths only in ignore
 
 ## Local checkout/worktrees
 
-Use JDK 23+ and the Maven Wrapper:
+Use JDK 25+ and the Maven Wrapper:
 
 ```text
 Windows:      .\mvnw.cmd clean test
@@ -20,7 +20,7 @@ Codex-managed worktrees; wrapper commands remain authoritative.
 
 In the repository's Codex environment settings:
 
-1. Set non-secret `CODEX_ENV_JAVA_VERSION=23`.
+1. Set non-secret `CODEX_ENV_JAVA_VERSION=25`.
 2. While setup has internet access, prime Maven/plugins with
    `./mvnw -B -ntp -DskipTests package`.
 3. Validate agents with `./mvnw -B -ntp clean test`.

@@ -8,7 +8,7 @@ Durable technical contract; mutable progress/blockers belong only in
 `deribit-starbase-api` is a reusable Starbase SBE TCP/UDP and REST-utility artifact:
 
 - Maven `io.contek.invoker:invoker-deribit-starbase-api`; package
-  `io.contek.invoker.deribit.starbase`; Java 23 unless deliberately revised.
+  `io.contek.invoker.deribit.starbase`; Java 25 unless deliberately revised.
 - No dependency on consumer applications/DTOs.
 - `deribit-api` retains standard REST/WebSocket history, fills, positions, balances,
   account data, ticker/statistics, and execution.

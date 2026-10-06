@@ -43,6 +43,12 @@ At every implementation turn:
 Update the status file before ending or nearing a context boundary; its filesystem state,
 not chat history, is the handoff. Do not commit, create remotes, or push unless asked.
 
+Reserve `docs/implementation-status.md` for substantive implementation work such as new
+features and specification updates. Routine build, toolchain, and documentation maintenance
+must not be recorded there as tasks or handoff entries.
+Keep Java version requirements and runtime-version details in build/configuration docs,
+not in `docs/implementation-status.md`.
+
 ## Test-first behavior changes
 
 1. Add the smallest deterministic test and observe the intended failure.
@@ -57,7 +63,7 @@ loopback peers, and checked-in PCAP data before live infrastructure.
 
 ## Fixed boundaries
 
-- Artifact: `io.contek.invoker:invoker-deribit-starbase-api`; Java 23 bytecode unless the
+- Artifact: `io.contek.invoker:invoker-deribit-starbase-api`; Java 25 bytecode unless the
   specification is explicitly revised.
 - No FIX, FIX Drop Copy, generated SBE codecs, or runtime XML parsing.
 - Use bounds-checked hardcoded codecs, fixed offsets, and absolute little-endian

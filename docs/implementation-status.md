@@ -104,7 +104,7 @@ order-entry recovery fixture. Only one configuration-time primitive array was ad
 normal event paths and their allocation contract are unchanged.
 
 Final verification: `./mvnw -B -ntp clean test` passed 363/363 (zero failures/errors/skips)
-using Maven 3.9.16/JDK 26.0.2.1 targeting Java 23. The normal allocation checks passed.
+using Maven 3.9.16. The normal allocation checks passed.
 `git diff --check` passed. A second fresh download confirmed 18/18 required source hashes
 and 2/2 additional cancellation-reference hashes against the 2026-10-04 audit.
 `java -cp target/test-classes:target/classes io.contek.invoker.deribit.starbase.live.StarbaseTestEnvironmentMain --help`
@@ -155,7 +155,7 @@ Test-first and verification evidence:
   the existing probes deterministic without production changes; both assembly classes then
   passed 20/20, and the order-entry assembly class passed eight consecutive fresh-fork runs.
 - A final `git diff --check && ./mvnw clean test` passed all 352 tests with zero failures,
-  errors, or skips on Java 26.0.2.1 and Maven 3.9.16 targeting Java 23.
+  errors, or skips with Maven 3.9.16.
 - A second complete download after implementation matched all 18 2026-09-16 hashes;
   production/testnet OE are byte-identical, production/testnet MD are byte-identical, and
   the checked-in OE XML is byte-identical to the authoritative v16 source.
@@ -555,7 +555,7 @@ below; the tests and source are the detailed executable record, while
 
 | Completed IDs | Implemented behavior | Main proof |
 | --- | --- | --- |
-| `FND-01`–`FND-06` | Standalone Java 23 Maven artifact; pinned sources/resources; deterministic byte fixtures; validated contexts, wipeable credentials, factory, explicit lifecycle, and stable primitive channels | `ArtifactBaselineTest`, `ProtocolSchemasTest`, `WireTestSupportTest`, `ConfigurationTest`, `FactoryLifecycleTest`, `StarbaseLongChannelTest` |
+| `FND-01`–`FND-06` | Standalone Maven artifact; pinned sources/resources; deterministic byte fixtures; validated contexts, wipeable credentials, factory, explicit lifecycle, and stable primitive channels | `ArtifactBaselineTest`, `ProtocolSchemasTest`, `WireTestSupportTest`, `ConfigurationTest`, `FactoryLifecycleTest`, `StarbaseLongChannelTest` |
 | `COD-01`–`COD-06` | Bounds/unsigned/alignment primitives; 32-byte TCP, 24-byte UDP, and 16-byte MD headers; exact Price9/Decimal72; schema/template/version dispatch | `codec/common/*Test.java` |
 | `MDC-01`–`MDC-07` | Hardcoded market-data reference, L3 mutation, trade, snapshot/cycle, and retransmit layouts; complete UDP packet validation; official PCAP replay | `codec/marketdata/*Test.java`, checked-in PCAP and golden trace |
 | `MDT-01`–`MDT-06` | Configured reusable-buffer UDP receiver; feed sequence/heartbeat tracking; primitive A/B arbitration; retransmit paging/retry/reject transport; snapshot synchronization; bounded health/counters | `marketdata/MarketDataUdpReceiverTest`, `FeedSequenceTrackerTest`, `FeedArbitratorTest`, `RetransmitClientTest`, `UdpRetransmitTransportTest`, `SnapshotSynchronizationTest`, `FeedDiagnosticsTest` |
@@ -685,7 +685,8 @@ consumer integration.
 
 ## Reproducible local verification
 
-Use JDK 23+; the checksum-verified wrapper pins Maven 3.9.16 and targets Java 23:
+The checksum-verified wrapper pins Maven 3.9.16. See the
+[current build requirements](../README.md#build) for toolchain setup:
 
 ```text
 Windows:      .\mvnw.cmd clean test

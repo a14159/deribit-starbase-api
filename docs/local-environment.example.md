@@ -5,12 +5,12 @@ Codex worktrees. Keep only machine launch details here—project state belongs i
 `implementation-status.md`, and secrets belong in credential storage.
 
 ```powershell
-$env:JAVA_HOME='<absolute JDK 23+ path>'
+$env:JAVA_HOME='<absolute JDK 25+ path>'
 .\mvnw.cmd clean test
 ```
 
 ```sh
-export JAVA_HOME='<absolute JDK 23+ path>'
+export JAVA_HOME='<absolute JDK 25+ path>'
 ./mvnw clean test
 ```
 

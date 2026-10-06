@@ -1,6 +1,6 @@
 # Deribit Starbase API
 
-Java 23 components for Deribit's Starbase interfaces. Maven coordinates:
+Java 25 components for Deribit's Starbase interfaces. Maven coordinates:
 `io.contek.invoker:invoker-deribit-starbase-api:0.1.0-SNAPSHOT`.
 
 ## Status
@@ -40,7 +40,7 @@ and integration gaps.
 
 ## Build
 
-Use JDK 23+ and the Maven wrapper:
+Use JDK 25+ and the Maven wrapper:
 
 ```text
 ./mvnw clean test

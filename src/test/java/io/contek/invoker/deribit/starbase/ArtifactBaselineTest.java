@@ -9,7 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public final class ArtifactBaselineTest {
-  public void testArtifactTargetsJava23AndKeepsLocalInstructionBootstrap() throws IOException {
+  public void testArtifactKeepsLocalInstructionBootstrap() throws IOException {
     String pom = Files.readString(Path.of("pom.xml"));
     String instructions = Files.readString(Path.of("AGENTS.md"));
 

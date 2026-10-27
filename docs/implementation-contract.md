@@ -87,7 +87,11 @@ Key L3 orders by exact 64-bit exchange ID; retain side, Price9 quantity, and `so
 Priority uses `sortOrderId`, never arrival. Reduce/delete exact orders and incrementally
 aggregate changed levels for consumer L2 adapters. `TradeSummary` is reusable context for
 following `Trade`s; preserve trade order/flags without intermediate decoded-message
-allocation.
+allocation. Publish off-book `BlockTrade` fills on a separate channel, framed by the header
+transaction flags. Live publication can resume mid-transaction, so reset trade and
+block-trade contexts at startup and on every fresh-snapshot requirement. After a reset, skip
+fills whose summary or transaction start was not observed until the next boundary. Once
+aligned, orphan, nested, or mismatched framing fails closed.
 
 ## Order-entry correctness and lifecycle
 
@@ -141,7 +145,9 @@ Starbase REST is blocking bootstrap/recovery/administration, never live executio
 credentials separate from standard Deribit. Implemented: instruments, open orders,
 portfolio cancel, lock, unlock. Open-order snapshots are immutable, cached, single-flight,
 and attempted no faster than documented. Failure may retain last-good state but cannot
-invent the first snapshot or restore readiness.
+invent the first snapshot or restore readiness. Structured failures expose HTTP status,
+JSON-RPC error, and a documented delay-seconds `Retry-After`. They are never retried
+automatically, and an uninterpretable delay is never guessed.
 
 REST/SBE reconciliation uses the formal Deribit clarification received on 2026-08-27 for
 Starbase REST `GET /api/v2/private/get_open_orders`: its string `order_id` is the base-10

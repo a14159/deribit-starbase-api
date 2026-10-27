@@ -87,6 +87,11 @@ public final class TradesChannelTest {
   public void testMalformedSummaryLifecycleFailsClosed() {
     StarbaseMarketDataApi stray = api();
     stray.getTradesChannel(100L);
+    stray.routeDecodedMessage(
+        summary(100L, 1L, 1L, 1L, 1L, 1L, 0, 0L, 1L),
+        0,
+        TradeSummaryDecoder.TEMPLATE_ID,
+        1L);
     assertThrows(
         StarbaseProtocolException.class,
         () ->
@@ -123,6 +128,50 @@ public final class TradesChannelTest {
         () ->
             incomplete.routeDecodedMessage(
                 message(20, 119, 5L), 0, 119, 5L));
+  }
+
+  public void testJoiningSkipsOrphanTradesUntilTheNextSummary() {
+    StarbaseMarketDataApi api = api();
+    int[] count = new int[1];
+    api.getTradesChannel(100L)
+        .addListener(
+            (matchId,
+                instrumentId,
+                makerOrderId,
+                fillQuantity,
+                fillPrice,
+                makerFlags,
+                takerOrderId,
+                totalFilled,
+                deepestPrice,
+                markPrice,
+                indexPrice,
+                takerFlags,
+                tradeIndex,
+                tradeCount,
+                sequence,
+                timestamp) -> count[0]++);
+
+    api.routeDecodedMessage(
+        trade(1L, 100L, 2L, 3L, 4L, 0L, 1L), 0, TradeDecoder.TEMPLATE_ID, 1L);
+    api.routeDecodedMessage(
+        trade(2L, 100L, 2L, 3L, 4L, 0L, 2L), 0, TradeDecoder.TEMPLATE_ID, 2L);
+    api.routeDecodedMessage(message(20, 119, 3L), 0, 119, 3L);
+    assertEquals(0, count[0]);
+
+    api.routeDecodedMessage(
+        summary(100L, 1L, 1L, 1L, 1L, 1L, 1, 0L, 4L),
+        0,
+        TradeSummaryDecoder.TEMPLATE_ID,
+        4L);
+    api.routeDecodedMessage(
+        trade(3L, 100L, 2L, 3L, 4L, 0L, 5L), 0, TradeDecoder.TEMPLATE_ID, 5L);
+    assertEquals(1, count[0]);
+    assertThrows(
+        StarbaseProtocolException.class,
+        () ->
+            api.routeDecodedMessage(
+                trade(4L, 100L, 2L, 3L, 4L, 0L, 6L), 0, TradeDecoder.TEMPLATE_ID, 6L));
   }
 
   public void testSummaryAndTradeDispatchAllocateNothingAfterWarmup() {

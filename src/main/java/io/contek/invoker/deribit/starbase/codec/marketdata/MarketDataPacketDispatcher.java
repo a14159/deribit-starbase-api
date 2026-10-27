@@ -77,6 +77,7 @@ public final class MarketDataPacketDispatcher {
       case TradeSummaryDecoder.TEMPLATE_ID ->
           TradeSummaryDecoder.validate(buffer, messageOffset);
       case TradeDecoder.TEMPLATE_ID -> TradeDecoder.validate(buffer, messageOffset);
+      case BlockTradeDecoder.TEMPLATE_ID -> BlockTradeDecoder.validate(buffer, messageOffset);
       case SnapshotHeaderDecoder.TEMPLATE_ID ->
           SnapshotHeaderDecoder.validate(buffer, messageOffset);
       case SnapshotTrailerDecoder.TEMPLATE_ID ->

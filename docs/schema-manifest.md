@@ -72,6 +72,7 @@ generated or runtime-parsed.
 | Market data | 25 | AskDelete | `AskDeleteDecoder` | `BookMutationDecodersTest` |
 | Market data | 30 | TradeSummary | `TradeSummaryDecoder` | `TradeDecodersTest` |
 | Market data | 31 | Trade | `TradeDecoder` | `TradeDecodersTest` |
+| Market data | 33 | BlockTrade | `BlockTradeDecoder` | `TradeDecodersTest` |
 | Market data | 100 | SnapshotHeader | `SnapshotHeaderDecoder` | `SnapshotDecodersTest` |
 | Market data | 101 | SnapshotTrailer | `SnapshotTrailerDecoder` | `SnapshotDecodersTest` |
 | Market data | 119 | EndOfCycle | `EndOfCycleDecoder` | `SnapshotDecodersTest` |
@@ -79,8 +80,15 @@ generated or runtime-parsed.
 | Market data | 202 | RetransmitReject | `RetransmitRejectDecoder` | `RetransmitCodecsTest` |
 
 Common framing/dispatch tests: `TcpHeaderCodecTest`, `UdpPacketHeaderCodecTest`,
-`MarketDataMessageHeaderCodecTest`, and `TemplateDispatchTest`. Schema-known template 33
-(`BlockTrade`) has no codec and is rejected fail-closed by `MarketDataPacketDispatcher`.
+`MarketDataMessageHeaderCodecTest`, and `TemplateDispatchTest`. Every template defined by
+the pinned market-data schema now has a codec. `BlockTrade` (33) is a fixed 78-byte root
+block packed in field order: `matchId` 0, `instrumentId` 8, `blockTradeId` 16, optional
+`blockRfqId` 24 (null `Long.MIN_VALUE`), `fillQtyMantissa` 32, `fillPrice` 40, `markPrice`
+48, `indexPrice` 56, optional `impliedVolatility` double 64 (null NaN), `takerFlags` uint32
+72, and `numberOfLegs` uint16 76. The message is accepted at its unpadded 94 bytes or
+aligned 96 bytes with zero padding; header transaction flags delimit each per-instrument
+block-trade event. A datagram carrying a template outside the pinned schema is counted as
+an unknown template and fails the assembly closed until restart.
 
 ### Order-entry templates
 

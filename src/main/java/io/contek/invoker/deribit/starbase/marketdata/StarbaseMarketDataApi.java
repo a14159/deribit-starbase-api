@@ -3,6 +3,7 @@ package io.contek.invoker.deribit.starbase.marketdata;
 import io.contek.invoker.deribit.starbase.channel.StarbaseLongChannel;
 import io.contek.invoker.deribit.starbase.channel.PrimitiveLongChannelRouter;
 import io.contek.invoker.deribit.starbase.channel.StarbaseTradeChannel;
+import io.contek.invoker.deribit.starbase.channel.StarbaseBlockTradeChannel;
 import io.contek.invoker.deribit.starbase.book.InstrumentRegistry;
 import io.contek.invoker.deribit.starbase.codec.marketdata.MarketDataPacketDispatcher;
 import io.contek.invoker.deribit.starbase.codec.marketdata.InstrumentDefinitionDecoder;
@@ -20,16 +21,19 @@ import io.contek.invoker.deribit.starbase.codec.marketdata.AskDeleteDecoder;
 import io.contek.invoker.deribit.starbase.codec.marketdata.EndOfCycleDecoder;
 import io.contek.invoker.deribit.starbase.codec.marketdata.TradeSummaryDecoder;
 import io.contek.invoker.deribit.starbase.codec.marketdata.TradeDecoder;
+import io.contek.invoker.deribit.starbase.codec.marketdata.BlockTradeDecoder;
 import io.contek.invoker.deribit.starbase.codec.marketdata.SnapshotHeaderDecoder;
 import io.contek.invoker.deribit.starbase.codec.marketdata.SnapshotTrailerDecoder;
 import io.contek.invoker.deribit.starbase.codec.common.UdpPacketHeaderCodec;
 import io.contek.invoker.deribit.starbase.codec.common.MarketDataMessageHeaderCodec;
+import io.contek.invoker.deribit.starbase.codec.common.MarketDataTemplateDispatch;
 import io.contek.invoker.deribit.starbase.common.AbstractStarbaseApi;
 import io.contek.invoker.deribit.starbase.common.GatewaySide;
 import io.contek.invoker.deribit.starbase.common.StarbaseException;
 import io.contek.invoker.deribit.starbase.common.StarbaseProtocolException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -56,6 +60,8 @@ public final class StarbaseMarketDataApi extends AbstractStarbaseApi {
   private final PrimitiveLongChannelRouter orderBooks;
   private final TradeChannelRouter trades;
   private final TradeSummaryContext tradeSummary = new TradeSummaryContext();
+  private final BlockTradeChannelRouter blockTrades;
+  private final BlockTradeContext blockTrade = new BlockTradeContext();
   private final InstrumentRegistry instruments;
   private final OrderBookStateRouter reconstructedBooks;
   private final StarbaseLongChannel referenceData = new StarbaseLongChannel();
@@ -173,6 +179,7 @@ public final class StarbaseMarketDataApi extends AbstractStarbaseApi {
     injectedRetransmitTransports = retransmitTransportA != null;
     orderBooks = new PrimitiveLongChannelRouter(instrumentCapacity);
     trades = new TradeChannelRouter(instrumentCapacity);
+    blockTrades = new BlockTradeChannelRouter(instrumentCapacity);
     instruments = new InstrumentRegistry(instrumentCapacity);
     reconstructedBooks = new OrderBookStateRouter(instrumentCapacity);
     dispatcher = new MarketDataPacketDispatcher(this::routeDecodedMessage);
@@ -245,6 +252,11 @@ public final class StarbaseMarketDataApi extends AbstractStarbaseApi {
 
   public StarbaseTradeChannel getTradesChannel(long instrumentId) {
     return trades.getOrCreate(instrumentId);
+  }
+
+  /** Off-book block-trade fills; separate from on-book {@link #getTradesChannel(long)} trades. */
+  public StarbaseBlockTradeChannel getBlockTradesChannel(long instrumentId) {
+    return blockTrades.getOrCreate(instrumentId);
   }
 
   public StarbaseLongChannel getReferenceDataChannel() {
@@ -778,6 +790,8 @@ public final class StarbaseMarketDataApi extends AbstractStarbaseApi {
     assemblySnapshotStateOpen = false;
     reconstructedBooks.abandonAtomicSnapshots(timestamp);
     incrementalArbitrator.reset();
+    tradeSummary.reset();
+    blockTrade.reset();
   }
 
   private void failAssembly(long timestamp) {
@@ -862,15 +876,33 @@ public final class StarbaseMarketDataApi extends AbstractStarbaseApi {
         || templateId == 12;
   }
 
+  /**
+   * Every template the pinned schema defines has a codec, so a rejected datagram carrying a template
+   * outside that schema is an unsupported, conservatively state-changing message rather than a
+   * transient corrupt frame. Walks the counted message headers without trusting further bounds.
+   */
   private static boolean isUnsupportedStateChange(ByteBuffer datagram) {
-    if (datagram.limit()
-        < UdpPacketHeaderCodec.ENCODED_LENGTH
-            + MarketDataMessageHeaderCodec.ENCODED_LENGTH) {
+    int limit = datagram.limit();
+    if (datagram.order() != ByteOrder.LITTLE_ENDIAN || limit < UdpPacketHeaderCodec.ENCODED_LENGTH) {
       return false;
     }
+    int messageCount = UdpPacketHeaderCodec.messageCount(datagram, 0);
     int messageOffset = UdpPacketHeaderCodec.ENCODED_LENGTH;
-    int templateId = MarketDataMessageHeaderCodec.templateId(datagram, messageOffset);
-    return templateId == 33;
+    for (int index = 0;
+        index < messageCount
+            && messageOffset <= limit - MarketDataMessageHeaderCodec.ENCODED_LENGTH;
+        index++) {
+      if (!MarketDataTemplateDispatch.isKnown(
+          MarketDataMessageHeaderCodec.templateId(datagram, messageOffset))) {
+        return true;
+      }
+      int length = MarketDataMessageHeaderCodec.messageLength(datagram, messageOffset);
+      if (length < MarketDataMessageHeaderCodec.ENCODED_LENGTH) {
+        return false;
+      }
+      messageOffset += length;
+    }
+    return false;
   }
 
   private static long safePacketTimestamp(ByteBuffer datagram) {
@@ -971,6 +1003,13 @@ public final class StarbaseMarketDataApi extends AbstractStarbaseApi {
               sequenceNumber,
               timestampNanos,
               trades);
+      case BlockTradeDecoder.TEMPLATE_ID ->
+          blockTrade.onBlockTrade(
+              buffer,
+              messageOffset,
+              sequenceNumber,
+              timestampNanos,
+              blockTrades);
       case SnapshotHeaderDecoder.TEMPLATE_ID ->
           onSnapshotHeader(buffer, messageOffset, sequenceNumber, timestampNanos);
       case SnapshotTrailerDecoder.TEMPLATE_ID ->
@@ -1259,6 +1298,8 @@ public final class StarbaseMarketDataApi extends AbstractStarbaseApi {
       snapshotArbitrator.reset();
       transportFailure = null;
       assemblyFailure = false;
+      tradeSummary.reset();
+      blockTrade.reset();
       freshSnapshotRequired = true;
       snapshotRecoveryState = SNAPSHOT_WAITING_FOR_BOUNDARY;
       if (isRedundant() && !injectedRetransmitTransports) {

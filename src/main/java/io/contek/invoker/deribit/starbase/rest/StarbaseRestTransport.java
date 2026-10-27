@@ -46,7 +46,10 @@ public final class StarbaseRestTransport implements AutoCloseable {
     try {
       HttpResponse<String> response =
           client.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-      return parse(response.statusCode(), response.body());
+      return parse(
+          response.statusCode(),
+          response.body(),
+          response.headers().firstValue("Retry-After").orElse(null));
     } catch (HttpTimeoutException timeout) {
       throw failure("Starbase REST request timed out", 0, true, timeout);
     } catch (InterruptedException interrupted) {
@@ -57,12 +60,13 @@ public final class StarbaseRestTransport implements AutoCloseable {
     }
   }
 
-  private static StarbaseRestResponse parse(int status, String body) {
+  private static StarbaseRestResponse parse(int status, String body, String retryAfter) {
     String jsonRpc = JsonEnvelope.stringValue(JsonEnvelope.member(body, "jsonrpc"));
     String result = JsonEnvelope.member(body, "result");
     if (status >= 200 && status < 300 && "2.0".equals(jsonRpc) && result != null) {
       return new StarbaseRestResponse(status, result);
     }
+    long retryAfterSeconds = retryAfterSeconds(retryAfter);
     String error = JsonEnvelope.member(body, "error");
     if ("2.0".equals(jsonRpc) && error != null) {
       String codeJson = JsonEnvelope.member(error, "code");
@@ -71,13 +75,46 @@ public final class StarbaseRestTransport implements AutoCloseable {
         int code = Integer.parseInt(codeJson);
         if (message != null) {
           throw new StarbaseRestException(
-              message, status, code, JsonEnvelope.member(error, "data"), false, null);
+              message,
+              status,
+              code,
+              JsonEnvelope.member(error, "data"),
+              false,
+              retryAfterSeconds,
+              null);
         }
       } catch (NumberFormatException ignored) {
         // Fall through to a generic secret-safe protocol failure.
       }
     }
-    throw failure("Invalid Starbase REST response", status, false, null);
+    throw new StarbaseRestException(
+        "Invalid Starbase REST response",
+        status,
+        StarbaseRestException.NO_ERROR_CODE,
+        null,
+        false,
+        retryAfterSeconds,
+        null);
+  }
+
+  /**
+   * Accepts only the RFC 9110 delay-seconds form that Starbase documents. An absent, HTTP-date,
+   * signed, fractional, or overlong value is reported as {@link
+   * StarbaseRestException#NO_RETRY_AFTER} rather than guessed.
+   */
+  private static long retryAfterSeconds(String value) {
+    if (value == null || value.isEmpty() || value.length() > 18) {
+      return StarbaseRestException.NO_RETRY_AFTER;
+    }
+    long seconds = 0;
+    for (int index = 0; index < value.length(); index++) {
+      char digit = value.charAt(index);
+      if (digit < '0' || digit > '9') {
+        return StarbaseRestException.NO_RETRY_AFTER;
+      }
+      seconds = seconds * 10 + (digit - '0');
+    }
+    return seconds;
   }
 
   private static StarbaseRestException failure(

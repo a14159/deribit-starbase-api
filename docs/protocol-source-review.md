@@ -194,15 +194,30 @@ The 2026-10-27 audit compared the current OpenAPI `Order` and `Instrument` schem
 required fields, endpoint parameters, and security schemes with the parser. It found no
 payload or authentication delta. Administrative calls remain explicit operator actions
 without client-side throttling. A 429 surfaces as `StarbaseRestException` with
-`httpStatus() == 429` and the JSON-RPC error. The `Retry-After` header value is not
-exposed, so a 429 must never be treated as success or retried automatically.
+`httpStatus() == 429`, the JSON-RPC error when present, and, since `RST-08`,
+`retryAfterSeconds()` carrying the documented delay-seconds header. An absent or
+uninterpretable header reports `NO_RETRY_AFTER` rather than a guess. A 429 is never
+treated as success or retried automatically.
 
 ## Market data and remaining validation boundaries
 
 MD layouts remain v1, including `IndexInfo` (12), corrected `InstrumentInfo` (14), and
 optional open interest on `InstrumentRef` (15). The unchanged official PCAP remains proof
-for unaffected messages but has no templates 12/14/15. Golden/boundary fixtures validate
-those reference layouts. `BlockTrade` (33) remains fail-closed.
+for unaffected messages but has no templates 12/14/15/33 and no trades. Golden/boundary
+fixtures validate those layouts.
+
+The [trades reference](https://docs.deribit.com/starbase/trades.md) (2026-10-28 SHA-256
+`FC734C79545619FD5348E48E858B8DE9193E064AE234A5D4937FE9DD461DBF95`) defines `BlockTrade`
+(33) as one message per off-book block-trade fill. The fills of a per-instrument block-trade
+event are grouped by the header start/end-of-transaction flags. A multi-leg block trade or
+Block RFQ produces one transaction per leg. `blockRfqId` is null for standard block trades
+and `impliedVolatility` is null for non-options. The implementation publishes each fill on
+a dedicated block-trade channel, separate from on-book trades. It skips fills of a
+transaction whose start preceded startup or fresh-snapshot recovery, and fails orphan,
+nested, or cross-instrument framing closed once aligned. The same reference says `Trade`
+(31) is also sent for combo synthetic legs but does not state which instrument ID a leg
+carries. The existing summary-instrument check is unchanged pending clarification or live
+evidence.
 
 The 2026-09-22 announcement describes optional future eviction of delivered instruments
 from snapshot caches. It explicitly ships disabled and depends on two other emission

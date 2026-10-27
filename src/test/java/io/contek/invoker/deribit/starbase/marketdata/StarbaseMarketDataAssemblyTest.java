@@ -10,9 +10,12 @@ import io.contek.invoker.deribit.starbase.StarbaseApiFactory;
 import io.contek.invoker.deribit.starbase.codec.common.MarketDataMessageHeaderCodec;
 import io.contek.invoker.deribit.starbase.codec.common.UdpPacketHeaderCodec;
 import io.contek.invoker.deribit.starbase.codec.marketdata.BidPutDecoder;
+import io.contek.invoker.deribit.starbase.codec.marketdata.BlockTradeDecoder;
 import io.contek.invoker.deribit.starbase.codec.marketdata.EndOfCycleDecoder;
 import io.contek.invoker.deribit.starbase.codec.marketdata.SnapshotHeaderDecoder;
 import io.contek.invoker.deribit.starbase.codec.marketdata.SnapshotTrailerDecoder;
+import io.contek.invoker.deribit.starbase.codec.marketdata.TradeDecoder;
+import io.contek.invoker.deribit.starbase.codec.marketdata.TradeSummaryDecoder;
 import io.contek.invoker.deribit.starbase.common.GatewaySide;
 import io.contek.invoker.deribit.starbase.common.IoPolicy;
 import io.contek.invoker.deribit.starbase.common.ProductGroup;
@@ -181,19 +184,172 @@ public final class StarbaseMarketDataAssemblyTest {
     assertFalse(api.isOrderBookReady(200L));
   }
 
-  public void testUnsupportedStateChangeFailsOnlyTheAffectedInputAndClosesReadiness() {
+  public void testUnknownTemplateFailsOnlyTheAffectedInputAndClosesReadiness() {
     StarbaseMarketDataApi api = api(new ScriptedTransport(), new ScriptedTransport());
     synchronize(api, 1L, 99L, 10L);
 
     assertThrows(
         StarbaseProtocolException.class,
-        () -> api.acceptIncrementalPacket(GatewaySide.A, unsupportedPacket(100L)));
+        () -> api.acceptIncrementalPacket(GatewaySide.A, unknownTemplatePacket(100L)));
 
     assertEquals(FeedDiagnostics.UNHEALTHY, api.incrementalDiagnostics(GatewaySide.A).health());
     assertEquals(1L, api.incrementalDiagnostics(GatewaySide.A).unknownTemplates());
     assertFalse(api.incrementalDiagnostics(GatewaySide.B).health() == FeedDiagnostics.UNHEALTHY);
     assertFalse(api.isSynchronized());
     assertFalse(api.isOrderBookReady(100L));
+  }
+
+  public void testLiveBlockTradesPublishOnceAcrossABWithoutClosingReadiness() {
+    StarbaseMarketDataApi api = api(new ScriptedTransport(), new ScriptedTransport());
+    long[] matches = new long[4];
+    int[] count = new int[1];
+    api.getBlockTradesChannel(100L)
+        .addListener(
+            (matchId,
+                instrumentId,
+                blockTradeId,
+                blockRfqId,
+                fillQuantity,
+                fillPrice,
+                markPrice,
+                indexPrice,
+                impliedVolatility,
+                takerFlags,
+                numberOfLegs,
+                fillIndex,
+                lastFill,
+                sequence,
+                timestamp) -> matches[count[0]++] = matchId);
+    synchronize(api, 1L, 99L, 10L);
+
+    ByteBuffer first =
+        blockTradePacket(100L, 1L, MarketDataMessageHeaderCodec.FLAG_START_OF_TRANSACTION);
+    ByteBuffer last =
+        blockTradePacket(101L, 2L, MarketDataMessageHeaderCodec.FLAG_END_OF_TRANSACTION);
+    api.acceptIncrementalPacket(GatewaySide.A, first);
+    api.acceptIncrementalPacket(GatewaySide.B, first);
+    api.acceptIncrementalPacket(GatewaySide.B, last);
+    api.acceptIncrementalPacket(GatewaySide.A, last);
+
+    assertEquals(2, count[0]);
+    assertEquals(1L, matches[0]);
+    assertEquals(2L, matches[1]);
+    assertTrue(api.isSynchronized());
+    assertTrue(api.isOrderBookReady(100L));
+    for (GatewaySide side : GatewaySide.values()) {
+      FeedDiagnostics diagnostics = api.incrementalDiagnostics(side);
+      assertFalse(diagnostics.health() == FeedDiagnostics.UNHEALTHY);
+      assertEquals(0L, diagnostics.unknownTemplates());
+      assertEquals(0L, diagnostics.corruptFrames());
+      assertEquals(1L, diagnostics.duplicates());
+    }
+  }
+
+  public void testFreshSnapshotRecoveryResetsAnOpenBlockTradeTransaction() {
+    StarbaseMarketDataApi api = api(new ScriptedTransport(), new ScriptedTransport());
+    long[] matches = new long[4];
+    int[] count = new int[1];
+    api.getBlockTradesChannel(100L)
+        .addListener(
+            (matchId,
+                instrumentId,
+                blockTradeId,
+                blockRfqId,
+                fillQuantity,
+                fillPrice,
+                markPrice,
+                indexPrice,
+                impliedVolatility,
+                takerFlags,
+                numberOfLegs,
+                fillIndex,
+                lastFill,
+                sequence,
+                timestamp) -> matches[count[0]++] = matchId);
+    synchronize(api, 1L, 99L, 10L);
+    api.acceptIncrementalPacket(
+        GatewaySide.A,
+        blockTradePacket(100L, 1L, MarketDataMessageHeaderCodec.FLAG_START_OF_TRANSACTION));
+    api.acceptIncrementalPacket(
+        GatewaySide.A, bidPutPacket(102L, 3L, 7L, 100L, 3L));
+    assertTrue(api.requiresFreshSnapshot());
+
+    long snapshotSequence = 6L;
+    api.acceptSnapshotPacket(GatewaySide.A, endOfCyclePacket(snapshotSequence++));
+    api.acceptSnapshotPacket(
+        GatewaySide.A, snapshotBoundaryPacket(snapshotSequence++, true, 102L));
+    api.acceptSnapshotPacket(
+        GatewaySide.A, snapshotBidPutPacket(snapshotSequence++, 9L, 99L, 110L, 9L));
+    api.acceptSnapshotPacket(
+        GatewaySide.A, snapshotBoundaryPacket(snapshotSequence++, false, 102L));
+    api.acceptSnapshotPacket(GatewaySide.A, endOfCyclePacket(snapshotSequence));
+    assertTrue(api.isSynchronized());
+
+    api.acceptIncrementalPacket(
+        GatewaySide.A,
+        blockTradePacket(
+            103L,
+            2L,
+            MarketDataMessageHeaderCodec.FLAG_START_OF_TRANSACTION
+                | MarketDataMessageHeaderCodec.FLAG_END_OF_TRANSACTION));
+
+    assertEquals(2, count[0]);
+    assertEquals(2L, matches[1]);
+    assertTrue(api.isSynchronized());
+  }
+
+  public void testFreshSnapshotRecoveryResetsAnOpenTradeSummary() {
+    StarbaseMarketDataApi api = api(new ScriptedTransport(), new ScriptedTransport());
+    long[] matches = new long[4];
+    int[] count = new int[1];
+    listenToTrades(api, matches, count);
+    synchronize(api, 1L, 99L, 10L);
+    api.acceptIncrementalPacket(GatewaySide.A, tradeSummaryPacket(100L, 2));
+    api.acceptIncrementalPacket(GatewaySide.A, tradePacket(101L, 1L));
+    api.acceptIncrementalPacket(
+        GatewaySide.A, bidPutPacket(103L, 3L, 7L, 100L, 3L));
+    assertTrue(api.requiresFreshSnapshot());
+
+    long snapshotSequence = 6L;
+    api.acceptSnapshotPacket(GatewaySide.A, endOfCyclePacket(snapshotSequence++));
+    api.acceptSnapshotPacket(
+        GatewaySide.A, snapshotBoundaryPacket(snapshotSequence++, true, 103L));
+    api.acceptSnapshotPacket(
+        GatewaySide.A, snapshotBidPutPacket(snapshotSequence++, 9L, 99L, 110L, 9L));
+    api.acceptSnapshotPacket(
+        GatewaySide.A, snapshotBoundaryPacket(snapshotSequence++, false, 103L));
+    api.acceptSnapshotPacket(GatewaySide.A, endOfCyclePacket(snapshotSequence));
+    assertTrue(api.isSynchronized());
+
+    api.acceptIncrementalPacket(GatewaySide.A, tradeSummaryPacket(104L, 1));
+    api.acceptIncrementalPacket(GatewaySide.A, tradePacket(105L, 2L));
+
+    assertEquals(2, count[0]);
+    assertEquals(1L, matches[0]);
+    assertEquals(2L, matches[1]);
+    assertTrue(api.isSynchronized());
+  }
+
+  public void testTradeFramingFailureRecoversAfterAFreshSnapshot() {
+    StarbaseMarketDataApi api = api(new ScriptedTransport(), new ScriptedTransport());
+    long[] matches = new long[4];
+    int[] count = new int[1];
+    listenToTrades(api, matches, count);
+    synchronize(api, 1L, 99L, 10L);
+    api.acceptIncrementalPacket(GatewaySide.A, tradeSummaryPacket(100L, 2));
+    assertThrows(
+        StarbaseProtocolException.class,
+        () -> api.acceptIncrementalPacket(GatewaySide.A, tradeSummaryPacket(101L, 1)));
+    assertTrue(api.requiresFreshSnapshot());
+
+    synchronize(api, 6L, 102L, 10L);
+    assertTrue(api.isSynchronized());
+    api.acceptIncrementalPacket(GatewaySide.A, tradeSummaryPacket(103L, 1));
+    api.acceptIncrementalPacket(GatewaySide.A, tradePacket(104L, 7L));
+
+    assertEquals(1, count[0]);
+    assertEquals(7L, matches[0]);
+    assertTrue(api.isSynchronized());
   }
 
   public void testLiveArbitrationDecodeAndBookMutationAllocateNothingAfterWarmup() {
@@ -357,11 +513,89 @@ public final class StarbaseMarketDataAssemblyTest {
     return packet;
   }
 
-  private static ByteBuffer unsupportedPacket(long packetSequence) {
+  private static void listenToTrades(StarbaseMarketDataApi api, long[] matches, int[] count) {
+    api.getTradesChannel(100L)
+        .addListener(
+            (matchId,
+                instrumentId,
+                makerOrderId,
+                fillQuantity,
+                fillPrice,
+                makerFlags,
+                takerOrderId,
+                totalFilled,
+                deepestPrice,
+                markPrice,
+                indexPrice,
+                takerFlags,
+                tradeIndex,
+                tradeCount,
+                sequence,
+                timestamp) -> matches[count[0]++] = matchId);
+  }
+
+  private static ByteBuffer tradeSummaryPacket(long packetSequence, int tradeCount) {
+    ByteBuffer packet =
+        packet(
+            packetSequence,
+            UdpPacketHeaderCodec.TYPE_INCREMENTAL_UPDATE,
+            TradeSummaryDecoder.TEMPLATE_ID,
+            MarketDataMessageHeaderCodec.FLAG_START_OF_TRANSACTION,
+            TradeSummaryDecoder.BLOCK_LENGTH);
+    int body = UdpPacketHeaderCodec.ENCODED_LENGTH + MarketDataMessageHeaderCodec.ENCODED_LENGTH;
+    packet.putLong(body, 100L);
+    for (int field = 1; field < 6; field++) {
+      packet.putLong(body + field * 8, 600L + field);
+    }
+    packet.putInt(body + TradeSummaryDecoder.TRADE_COUNT_OFFSET, tradeCount);
+    return packet;
+  }
+
+  private static ByteBuffer tradePacket(long packetSequence, long matchId) {
+    ByteBuffer packet =
+        packet(
+            packetSequence,
+            UdpPacketHeaderCodec.TYPE_INCREMENTAL_UPDATE,
+            TradeDecoder.TEMPLATE_ID,
+            0,
+            TradeDecoder.BLOCK_LENGTH);
+    int body = UdpPacketHeaderCodec.ENCODED_LENGTH + MarketDataMessageHeaderCodec.ENCODED_LENGTH;
+    packet.putLong(body, matchId);
+    packet.putLong(body + 8, 100L);
+    packet.putLong(body + 16, Long.MIN_VALUE);
+    packet.putLong(body + 24, 4L);
+    packet.putLong(body + 32, 101L);
+    return packet;
+  }
+
+  private static ByteBuffer blockTradePacket(long packetSequence, long matchId, int flags) {
+    ByteBuffer packet =
+        packet(
+            packetSequence,
+            UdpPacketHeaderCodec.TYPE_INCREMENTAL_UPDATE,
+            BlockTradeDecoder.TEMPLATE_ID,
+            flags,
+            BlockTradeDecoder.BLOCK_LENGTH);
+    int body = UdpPacketHeaderCodec.ENCODED_LENGTH + MarketDataMessageHeaderCodec.ENCODED_LENGTH;
+    packet.putLong(body, matchId);
+    packet.putLong(body + 8, 100L);
+    packet.putLong(body + 16, 500L + matchId);
+    packet.putLong(body + 24, Long.MIN_VALUE);
+    packet.putLong(body + 32, 4L);
+    packet.putLong(body + 40, 101L);
+    packet.putLong(body + 48, 102L);
+    packet.putLong(body + 56, 103L);
+    packet.putDouble(body + 64, Double.NaN);
+    packet.putShort(body + 76, (short) 1);
+    return packet;
+  }
+
+  /** Template 13 is outside the pinned market-data schema. */
+  private static ByteBuffer unknownTemplatePacket(long packetSequence) {
     return packet(
         packetSequence,
         UdpPacketHeaderCodec.TYPE_INCREMENTAL_UPDATE,
-        33,
+        13,
         0,
         16);
   }

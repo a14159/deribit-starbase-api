@@ -4,12 +4,12 @@
 
 | Field | Value |
 | --- | --- |
-| Overall state | **WAITING — private `VAL-EC2` inputs; current local protocol/REST adoption complete** |
+| Overall state | **WAITING — private `VAL-EC2` inputs; requested local maintenance complete** |
 | Gate resolution date | 2026-08-27 |
 | Active task | None; `VAL-EC2` is the next task once assigned connectivity and credentials are available |
 | Blocking task | `VAL-EC2` requires the assigned private-network environment and credentials; consumer repository/guidance is absent; the REST authentication conflict remains isolated |
-| Last completed implementation task | `SPEC-06`, OE v18 `CANCEL_ONLY` reject reason and v19 echoed `NewOrderResponse.flags` with exact lifecycle verification; preceded by `RST-07` |
-| Local verification | 2026-10-27: `./mvnw -B -ntp clean test` passed 370/370 with no failures, errors, or skips. An earlier clean run passed 369/370, failing only a pre-existing intermittent market-data allocation probe that also fails on the unmodified prior commit. A second download matched all 22 fetched sources. |
+| Last completed implementation task | `RST-08`, structured REST `Retry-After` delay; preceded on 2026-10-28 by `MDA-05` block trades and `MDA-06` trade-summary recovery reset, and on 2026-10-27 by OE-v19 `SPEC-06` |
+| Local verification | 2026-10-28: `./mvnw -B -ntp clean test` passed 384/384 with no failures, errors, or skips. Two pre-existing market-data allocation probes remain intermittently non-zero on the reference workstation, including on the unmodified 2026-10-27 parent commit. |
 | Production readiness | **No** — downstream consumer integration, joint builds, private connectivity/authentication validation (including live v19 flag-echo behavior), and operations/rollback validation remain |
 | Exact next action | Obtain the assigned private-environment configuration/access reference, revalidate current sources, record `VAL-EC2` active, and run credential-safe validation with state changes disabled; do not guess authentication or open readiness. |
 
@@ -17,6 +17,167 @@
 and test-first implementation. `ASM-OE` completed on 2026-08-28 after another complete
 official-source revalidation. `SPEC-01` remains resolved by the formal clarification, but
 production readiness remains closed until consumer integration and validation complete.
+
+## 2026-10-28 `RST-08` structured REST `Retry-After` — complete
+
+The 2026-10-27 REST rate-limit reference documents fixed, UTC-aligned one-minute caps per
+portfolio, endpoint, and REST gateway, plus HTTP 429 with a `Retry-After` header in seconds.
+The transport previously discarded response headers, so operators of the
+one-per-minute `cancel_all`, `lock_portfolio`, and `unlock_portfolio` calls could not see
+the documented delay.
+
+`StarbaseRestException.retryAfterSeconds()` now returns the header's RFC 9110
+delay-seconds value for every failure built from an HTTP response, whether it carried a
+JSON-RPC error or not. `NO_RETRY_AFTER` (-1) means absent, an HTTP-date, signed,
+fractional, empty, or longer than 18 digits; the value is never guessed or converted.
+Timeouts and I/O failures carry `NO_RETRY_AFTER`. No call is retried or throttled
+automatically. The open-order recovery cache keeps its one-minute minimum, which already
+spans a full fixed rate-limit window. Authentication, endpoints, payload parsing, and the
+source-compatible package-private constructor are unchanged.
+
+Test-first evidence:
+
+- Compile RED: `StarbaseRestTransportTest` failed with 10 expected missing-symbol errors.
+- Behavioral RED: with only the accessor and constant always reporting no delay, the class
+  ran 6 tests and failed only the positive delay case (`expected <37> but was <-1>`).
+- PASS: transport, administrative, open-order, instrument, recovery-cache, and
+  reconciliation suites passed 40/40.
+- Mutation check: letting the parser skip non-digits failed only
+  `testAbsentOrUninterpretableRetryAfterIsNeverGuessed`, because `"-1"` became 1. It was
+  restored.
+- Coverage pins JSON-RPC and non-JSON 429 bodies, zero, the 18-digit maximum, and an absent,
+  HTTP-date, negative, alphanumeric, fractional, empty, or 19-digit header. A timeout
+  carries no delay.
+- `git diff --check` passed. `./mvnw -B -ntp clean test` passed 384/384 with no failures,
+  errors, or skips.
+
+Changed production: `StarbaseRestException` and `StarbaseRestTransport`. Changed test:
+`StarbaseRestTransportTest`. No live REST request was made.
+
+## 2026-10-28 `MDA-06` trade-summary recovery reset — complete
+
+Tracing `MDA-05` recovery exposed a pre-existing defect. `requireFreshSnapshot` never reset
+`TradeSummaryContext`, and its failure flag was sticky. Trades are dropped while
+recovering, and live publication resumes when the snapshot feed completes, not at an
+incremental transaction boundary. So an unrecoverable gap during an open summary made the
+next live summary fail as nested. A resumption between a summary and its trades failed on
+an orphan trade. Either failure then poisoned every later TradeSummary, Trade, and
+incremental `EndOfCycle` until restart, repeatedly failing the incremental feed.
+
+`TradeSummaryContext.reset()` now clears the open scope and failure and rejoins. It runs at
+startup and in every `requireFreshSnapshot`, alongside the block-trade reset. While joining,
+trades without an observed summary are skipped until the next TradeSummary aligns the
+context. Once aligned, nested summaries, orphan trades, instrument mismatches, and
+`EndOfCycle` before all trades still fail closed. The failure flag still blocks the replay
+and legacy paths until the next reset. The earlier unit expectation that a stray trade on a
+fresh context throws was moved to an aligned context, because a fresh context may
+legitimately start mid-summary.
+
+Test-first evidence:
+
+- RED: the trade-channel and assembly suites ran 15 tests with three intended failures.
+  `nested TradeSummary` showed the missing reset, `trade summary context is failed` the
+  sticky failure, and `Trade without open TradeSummary` the missing join.
+- PASS: focused/affected trade, block-trade, assembly, routing, replay, and factory
+  suites passed 37/37.
+- Mutation checks: removing the `requireFreshSnapshot` reset failed both new assembly
+  tests. Keeping the failure flag sticky failed only
+  `testTradeFramingFailureRecoversAfterAFreshSnapshot`. Starting aligned failed only
+  `testJoiningSkipsOrphanTradesUntilTheNextSummary`, plus the known intermittent 56-byte
+  allocation probe in the same run. All were restored.
+- `git diff --check` passed. `./mvnw -B -ntp clean test` passed 382/382 with no failures,
+  errors, or skips.
+
+Changed production: `TradeSummaryContext` and `StarbaseMarketDataApi`. Changed tests:
+`TradesChannelTest` and `StarbaseMarketDataAssemblyTest`. Live trade framing is
+unvalidated until private market-data access exists.
+
+## 2026-10-28 `MDA-05` market-data block trades — complete
+
+The requester asked for implementation work that needs no live Starbase server. Schema-known
+`BlockTrade` (template 33) previously had no codec, so any public block trade failed its
+incremental feed and the whole market-data assembly closed until restart. A same-day
+revalidation found the OE/MD XMLs, OpenAPI, binary reference, changelog, trades page, and
+book-maintenance page byte-identical to the 2026-10-27 audit. The current trades page
+SHA-256 is `FC734C79545619FD5348E48E858B8DE9193E064AE234A5D4937FE9DD461DBF95`.
+
+The unchanged MD v1 XML defines a fixed 78-byte root block packed in field order:
+
+| Offset | Field | Type |
+| ---: | --- | --- |
+| 0 | `matchId` | int64 |
+| 8 | `instrumentId` | int64 |
+| 16 | `blockTradeId` | int64 |
+| 24 | `blockRfqId` | optional int64 (null `Long.MIN_VALUE` for standard block trades) |
+| 32 | `fillQtyMantissa` | int64 |
+| 40 | `fillPrice` | `Price9` |
+| 48 | `markPrice` | `Price9` |
+| 56 | `indexPrice` | `Price9` |
+| 64 | `impliedVolatility` | optional double (null NaN for non-options) |
+| 72 | `takerFlags` | `TradeFlags` uint32 |
+| 76 | `numberOfLegs` | uint16 |
+
+The fills of one per-instrument block-trade event are a transaction delimited by the header
+start/end flags. A multi-leg block trade produces one transaction per leg.
+
+- `BlockTradeDecoder` validates the unpadded 94-byte or 8-byte-aligned 96-byte message,
+  zero padding, every required non-null field, known taker flags, and a non-infinite
+  volatility. It exposes the optional nulls and `numberOfLegs` as-is.
+- `MarketDataPacketDispatcher` validates 33 before callbacks. The public
+  `getBlockTradesChannel(instrumentId)` returns a stable `StarbaseBlockTradeChannel`. Its
+  allocation-free primitive listener carries every field plus the fill's index and
+  last-fill marker within its transaction.
+- `BlockTradeContext` tracks framing for every block trade, even when no channel exists.
+  Live publication can resume mid-transaction after startup or fresh-snapshot recovery, so a
+  reset context joins first: it skips fills whose transaction start it did not observe until
+  that transaction ends or a new one starts. Once aligned, an orphan continuation, a nested
+  start, or a cross-instrument fill fails the input closed. Startup and every
+  `requireFreshSnapshot` reset the context; as with on-book trades, block trades are not
+  published while recovering.
+- No pinned MD template now lacks a codec, so the fatal unsupported-state-change path now
+  recognises a rejected datagram carrying any template ID outside the pinned schema. It
+  walks every counted message header, not just the first. That feed's `unknownTemplates`
+  counter increments and assembly readiness stays closed until restart. Previously such IDs
+  were counted as corrupt frames and retried through fresh snapshots.
+
+Test-first evidence:
+
+- RED 1: retargeting the existing fatal-path assembly test from 33 to the out-of-schema
+  template 13 failed as intended. `unknownTemplates` was 0 because the old helper
+  recognised only 33.
+- RED 2: the new decoder, channel, assembly, and `isKnown` tests failed test compilation
+  with 69 expected missing-symbol errors across four test classes.
+- PASS: focused/affected market-data, replay, receiver, diagnostics, and factory suites
+  passed 48/48. One RED-to-GREEN correction was in a fixture: a 93-byte
+  short-length case wrote past its own buffer, so it now uses a header-only message.
+- Mutation checks: removing the `requireFreshSnapshot` reset failed only
+  `testFreshSnapshotRecoveryResetsAnOpenBlockTradeTransaction`. Starting aligned instead of
+  joining failed only `testJoiningMidTransactionSkipsOrphanFillsUntilAligned`, plus the
+  known intermittent 56-byte market-data allocation probe in the same run. Removing the
+  cross-instrument check failed only
+  `testAlignedFramingFailsClosedForOrphanNestedAndCrossInstrumentFills`. All were restored.
+- Coverage pins every offset, both optional nulls, the padded form, short/odd lengths,
+  non-zero padding, unknown flags, every required null, infinite volatility, exact
+  multi-fill ordering, channel isolation, A/B duplicate suppression with readiness kept
+  open, recovery reset, and zero allocation after warm-up for decode and dispatch.
+- `git diff --check` passed. `./mvnw -B -ntp clean test` passed 379/379 with no failures,
+  errors, or skips.
+
+Changed production: new `BlockTradeDecoder`, `StarbaseBlockTradeChannel`,
+`StarbaseBlockTradeListener`, `BlockTradeChannelRouter`, and `BlockTradeContext`; updated
+`MarketDataPacketDispatcher`, `MarketDataTemplateDispatch` (`isKnown`), and
+`StarbaseMarketDataApi`. Changed tests: new `BlockTradesChannelTest`; updated
+`TradeDecodersTest`, `TemplateDispatchTest`, and `StarbaseMarketDataAssemblyTest`. No order
+entry, REST, credential, endpoint, or consumer behavior changed, and the official PCAP has
+no block trades. Live block-trade framing is unvalidated until private market-data access
+exists.
+
+Open documentation question, deliberately unchanged: `Trade` (31) is also sent for
+"synthetic leg[s] for trades on combo instruments", but the docs do not say which
+instrument ID a leg carries. `TradeSummaryContext` requires every `Trade` to match its
+summary's instrument and fails closed otherwise. If live combo trades carry leg instrument
+IDs, that rule would fail the feed. It needs a Deribit clarification or live evidence
+rather than a guess.
 
 ## 2026-10-27 restart audit and `SPEC-06` order-entry schema-v19 adoption — complete
 
@@ -648,11 +809,11 @@ below; the tests and source are the detailed executable record, while
 | `MDC-01`–`MDC-07` | Hardcoded market-data reference, L3 mutation, trade, snapshot/cycle, and retransmit layouts; complete UDP packet validation; official PCAP replay | `codec/marketdata/*Test.java`, checked-in PCAP and golden trace |
 | `MDT-01`–`MDT-06` | Configured reusable-buffer UDP receiver; feed sequence/heartbeat tracking; primitive A/B arbitration; retransmit paging/retry/reject transport; snapshot synchronization; bounded health/counters | `marketdata/MarketDataUdpReceiverTest`, `FeedSequenceTrackerTest`, `FeedArbitratorTest`, `RetransmitClientTest`, `UdpRetransmitTransportTest`, `SnapshotSynchronizationTest`, `FeedDiagnosticsTest` |
 | `BOK-01`–`BOK-07` | Exact signed-64-bit instrument registry; fixed-capacity L3 store; put/reduce/delete; Price9 level aggregation and priority; coherent publication; double-buffered snapshot/replay; invariants and allocation checks | `book/*Test.java` |
-| `MDA-01`–`MDA-04` | Fixed primitive channel caches; reference routing; reconstructed L3-to-level channel; trade-summary/trade channel; stateful PCAP-to-channel replay | `MarketDataChannelRoutingTest`, `OrderBookChannelTest`, `TradesChannelTest`, `PcapToChannelsReplayTest` |
+| `MDA-01`–`MDA-06` | Fixed primitive channel caches; reference routing; reconstructed L3-to-level channel; trade-summary/trade channel; stateful PCAP-to-channel replay; block-trade decoding and channel; trade and block-trade context reset/join on recovery | `MarketDataChannelRoutingTest`, `OrderBookChannelTest`, `TradesChannelTest`, `BlockTradesChannelTest`, `TradeDecodersTest`, `PcapToChannelsReplayTest`, `StarbaseMarketDataAssemblyTest` |
 | `OEC-01`–`OEC-06` | 25 hardcoded order-entry session, new/amend/cancel/mass-cancel, response/reject, fill, and unsolicited lifecycle layouts with fail-closed dispatch | `codec/orderentry/*Test.java` |
 | `OET-01`–`OET-07` | Reusable TCP frame assembly; serialized partial-write handling; explicit connection loop; authentication; heartbeat/inactivity; sequence/resend; reconnect/backoff/readiness gates | `orderentry/connection/*Test.java` |
 | `ORD-01`–`ORD-06`, `CLIENT-ID-01` | Fixed correlation table; cross-session local order state; command encoder facade; exact-once fills; native signed-long and stateless canonical bidirectional String client IDs; deterministic one-send A/B routing | `orderentry/state/*Test.java`, `orderentry/command/*Test.java` |
-| `RST-01`–`RST-07` | Configured bearer/no-auth HTTP transport; instruments, registry bootstrap, and current filters; exact open-order instrument/product-group metadata and fail-closed flags; cancel-all/lock/unlock; rate-limited recovery cache | `rest/*Test.java`, `OrderStateReconciliationTest` |
+| `RST-01`–`RST-08` | Configured bearer/no-auth HTTP transport; instruments, registry bootstrap, and current filters; exact open-order instrument/product-group metadata and fail-closed flags; cancel-all/lock/unlock; rate-limited recovery cache; structured `Retry-After` delay | `rest/*Test.java`, `OrderStateReconciliationTest` |
 | `SPEC-02`, `ORD-07` | Current production schema/REST model adoption and exact decimal REST/SBE identity reconciliation | Protocol/REST/codec tests and `OrderStateReconciliationTest` |
 | `SPEC-03`–`SPEC-06` | Per-message order-entry version compatibility through v19, versioned cancel-response quantities, unsolicited cross-session cancellation, `CANCEL_ONLY` rejects, exact echoed new-order flags, and current non-trading runner negotiation | `ProtocolSchemasTest`, `TemplateDispatchTest`, `CancelOrderCodecsTest`, `NewOrderCodecsTest`, `LocalOrderStateStoreTest`, `StarbaseOrderEntryAssemblyTest`, `StarbaseTestEnvironmentMainTest` |
 | `ASM-MD`, `ASM-OE` | Redundant public market-data and order-entry lifecycles with fail-closed recovery/readiness | `StarbaseMarketDataAssemblyTest`, `StarbaseOrderEntryAssemblyTest` |
@@ -710,7 +871,10 @@ Green component/replay tests do **not** make the public APIs a complete client:
 2. The redundant `StarbaseMarketDataApi` lifecycle is assembled and tested locally, but no
    private multicast/retransmit environment or downstream health adapter has validated it.
 3. Index definition/info identities are published to the primitive reference channel but
-   there is no named index registry. `BlockTrade` template 33 has no codec and fails closed.
+   there is no named index registry. Block trades are decoded and published, but no live
+   or official capture has validated block-trade or combo-leg trade framing. The
+   instrument ID carried by combo synthetic-leg `Trade` messages is undocumented, and the
+   summary-instrument check would fail such a feed closed.
 4. The REST authentication guide requires Basic while the OpenAPI specifies Bearer/private
    and unauthenticated instruments. The configured OpenAPI-shaped behavior remains
    isolated pending clarification or private live evidence.
@@ -731,6 +895,9 @@ Green component/replay tests do **not** make the public APIs a complete client:
 | `SPEC-06` | DONE | Adopted OE v18 `CANCEL_ONLY` reject reason and v19 versioned `NewOrderResponse.flags` with exact submitted-flag verification and v19 negotiation | 2026-10-27 complete official-source audit; affected 132/132 and clean 370/370 tests |
 | `RST-07` | DONE | Adopted current open-order instrument identity/product-group metadata, exact instrument consistency during recovery, and additional instrument filters without changing authentication or recovery rate limits | 2026-10-04 current OpenAPI; clean 363/363 tests |
 | `RST-06` | DONE | Reject contradictory or explicitly null REST open-order flags while retaining distinct optional `post_only`, `reject_post_only`, and `reduce_only` mappings | Unchanged current OpenAPI; fresh 18/18 source audit |
+| `MDA-05` | DONE | Decode market-data `BlockTrade` (33), publish it on a stable primitive per-instrument channel with exact transaction framing, and treat out-of-schema templates as fatal unknown templates | 2026-10-28 source revalidation; clean 379/379 tests |
+| `MDA-06` | DONE | Reset trade-summary and block-trade contexts at startup and on every fresh-snapshot requirement; skip orphan fills until aligned instead of failing permanently | `MDA-05`; clean 382/382 tests |
+| `RST-08` | DONE | Expose the documented HTTP `Retry-After` delay-seconds on structured REST failures without automatic retry or guessing | 2026-10-27 rate-limit reference; clean 384/384 tests |
 | `ORD-07` | DONE | Parse the clarified exact ID and reconcile missing, extra, matching, duplicate, invalid, and ambiguous REST/SBE orders before restoring readiness | `SPEC-02` |
 | `ASM-MD` | DONE | Compose both A/B feed instances, arbitration, retransmit, snapshot fallback, atomic books, and health into the public market-data lifecycle | `SPEC-02`; existing MD components |
 | `ASM-OE` | DONE | Composed TCP A/B sessions, dispatcher, state, commands, routing, events, exact REST recovery, and fail-closed readiness into `StarbaseOrderEntryApi` | `ORD-07`; existing OE components |
@@ -758,8 +925,8 @@ consumer integration.
    again, update the audit and re-scope before protocol or live-runner changes. If the
    private configuration/access reference is still unavailable, record the evidence and
    stop; do not invent endpoints or credentials.
-5. Preserve completed `SPEC-02`–`SPEC-06`, `RST-07`, `ORD-07`, `ASM-MD`, and `ASM-OE`
-   behavior. Do not guess through the isolated REST authentication conflict or bypass any
+5. Preserve completed `SPEC-02`–`SPEC-06`, `RST-07`, `RST-08`, `MDA-05`, `MDA-06`,
+   `ORD-07`, `ASM-MD`, and `ASM-OE` behavior. Do not guess through the isolated REST authentication conflict or bypass any
    reference, reconciliation, sequence, book, or session readiness gate.
 6. Once assigned private connectivity and credentials are available, record `VAL-EC2`
    active before running credential-safe validation with state changes disabled. Collect

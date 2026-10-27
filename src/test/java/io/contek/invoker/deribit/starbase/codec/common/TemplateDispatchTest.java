@@ -36,7 +36,11 @@ public final class TemplateDispatchTest {
     int[] knownIds = {10, 11, 12, 14, 15, 16, 20, 21, 22, 23, 24, 25, 30, 31, 33, 100, 101, 119, 200, 202};
     for (int templateId : knownIds) {
       assertEquals(templateId, MarketDataTemplateDispatch.requireKnown(templateId));
+      assertTrue(MarketDataTemplateDispatch.isKnown(templateId));
     }
+    assertFalse(MarketDataTemplateDispatch.isKnown(1));
+    assertFalse(MarketDataTemplateDispatch.isKnown(13));
+    assertFalse(MarketDataTemplateDispatch.isKnown(65_535));
 
     assertThrows(
         StarbaseProtocolException.class, () -> MarketDataTemplateDispatch.requireKnown(1));

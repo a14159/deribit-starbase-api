@@ -20,11 +20,18 @@ public final class MarketDataTemplateDispatch {
   }
 
   public static int requireKnown(int templateId) {
+    if (!isKnown(templateId)) {
+      throw new StarbaseProtocolException("unknown market-data templateId: " + templateId);
+    }
+    return templateId;
+  }
+
+  /** Returns whether the pinned market-data schema defines this template ID. */
+  public static boolean isKnown(int templateId) {
     return switch (templateId) {
       case 10, 11, 12, 14, 15, 16, 20, 21, 22, 23, 24, 25, 30, 31, 33,
-          100, 101, 119, 200, 202 -> templateId;
-      default -> throw new StarbaseProtocolException(
-          "unknown market-data templateId: " + templateId);
+          100, 101, 119, 200, 202 -> true;
+      default -> false;
     };
   }
 

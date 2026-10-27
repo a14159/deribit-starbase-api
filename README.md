@@ -25,13 +25,14 @@ Project context:
 - Bounds-checked absolute little-endian framing, market-data, and 25 order-entry layouts.
 - UDP receive/sequencing, A/B arbitration, retransmit, snapshot, health, and diagnostics.
 - Exact 64-bit registry/L3 book, aggregation, atomic snapshots, coherent publication, and
-  cached primitive channels.
+  cached primitive channels, including on-book trades and off-book block trades.
 - TCP framing/write/lifecycle, authentication, heartbeat, sequencing, reconnect/readiness,
   correlation, order/fill state, native-long and canonical bidirectional String client
   IDs, and one-send A/B routing.
 - Five REST utilities with current instrument filters, exact open-order instrument and
-  product-group metadata, and an immutable, synchronous single-flight open-order cache
-  with a one-minute minimum attempt interval.
+  product-group metadata, structured failures including the documented `Retry-After`
+  delay, and an immutable, synchronous single-flight open-order cache with a one-minute
+  minimum attempt interval.
 - Deterministic official-PCAP replay and hot-path allocation checks.
 
 The redundant order-entry and market-data paths are composed behind public APIs. See the
@@ -51,7 +52,7 @@ Tests have no framework dependency. Surefire's auto-detected
 zero-argument `test*` methods; local `TestAssertions` supplies assertions. The baseline
 test verifies Java assertions are enabled.
 
-The 2026-10-27 clean run passed 370/370 tests. Two existing market-data allocation probes
+The 2026-10-28 clean run passed 384/384 tests. Two existing market-data allocation probes
 are intermittently non-zero on the reference workstation, including on the unmodified prior
 commit; see the [status handoff](docs/implementation-status.md). This proves local behavior
 only; it does not establish production readiness or replace the credential-safe

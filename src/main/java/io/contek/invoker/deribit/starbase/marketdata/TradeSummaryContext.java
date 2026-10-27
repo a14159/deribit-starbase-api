@@ -6,7 +6,13 @@ import io.contek.invoker.deribit.starbase.codec.marketdata.TradeSummaryDecoder;
 import io.contek.invoker.deribit.starbase.common.StarbaseProtocolException;
 import java.nio.ByteBuffer;
 
-/** Fail-closed allocation-free scope for TradeSummary followed by exactly N Trade messages. */
+/**
+ * Fail-closed allocation-free scope for TradeSummary followed by exactly N Trade messages.
+ *
+ * <p>Live publication can resume mid-summary after startup or a fresh-snapshot recovery, so a reset
+ * context first joins: Trades whose TradeSummary was not observed are skipped until the next
+ * TradeSummary. Once aligned, framing failures fail closed until the next reset.
+ */
 final class TradeSummaryContext {
 
   private long instrumentId;
@@ -20,12 +26,14 @@ final class TradeSummaryContext {
   private int tradeIndex;
   private boolean open;
   private boolean failed;
+  private boolean joining = true;
 
   void onSummary(ByteBuffer buffer, int offset) {
     requireHealthy();
     if (open) {
       fail("nested TradeSummary");
     }
+    joining = false;
     instrumentId = TradeSummaryDecoder.instrumentId(buffer, offset);
     takerOrderId = TradeSummaryDecoder.takerOrderId(buffer, offset);
     totalFilled = TradeSummaryDecoder.totalFilledMantissa(buffer, offset);
@@ -46,6 +54,9 @@ final class TradeSummaryContext {
       TradeChannelRouter channels) {
     requireHealthy();
     if (!open) {
+      if (joining) {
+        return;
+      }
       fail("Trade without open TradeSummary");
     }
     long tradeInstrumentId = TradeDecoder.instrumentId(buffer, offset);
@@ -83,6 +94,15 @@ final class TradeSummaryContext {
     if (open) {
       fail("EndOfCycle before all TradeSummary trades");
     }
+  }
+
+  /** Forgets any open summary or failure and rejoins at the next TradeSummary. */
+  void reset() {
+    open = false;
+    failed = false;
+    joining = true;
+    tradeCount = 0;
+    tradeIndex = 0;
   }
 
   private void requireHealthy() {

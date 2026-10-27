@@ -71,6 +71,7 @@ public final class StarbaseRestTransportTest {
               () -> transport.get("api/v2/private/get_open_orders", true));
 
       assertTrue(failure.isTimeout());
+      assertEquals(StarbaseRestException.NO_RETRY_AFTER, failure.retryAfterSeconds());
       assertFalse(failure.toString().contains(secret));
       assertFalse(transport.toString().contains(secret));
       assertThrows(
@@ -102,6 +103,31 @@ public final class StarbaseRestTransportTest {
     }
   }
 
+  public void testExposesDocumentedRetryAfterDelayOnRateLimitedFailures() throws Exception {
+    String body =
+        "{\"jsonrpc\":\"2.0\",\"id\":7,\"error\":{\"code\":10028,\"message\":\"too_many_requests\"}}";
+    assertEquals(37L, retryAfterFor(429, body, "37"));
+    assertEquals(0L, retryAfterFor(429, body, "0"));
+    assertEquals(60L, retryAfterFor(429, "rate limited", "60"));
+    assertEquals(
+        999_999_999_999_999_999L, retryAfterFor(429, body, "999999999999999999"));
+  }
+
+  public void testAbsentOrUninterpretableRetryAfterIsNeverGuessed() throws Exception {
+    String body = "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":10028,\"message\":\"too_many_requests\"}}";
+    assertEquals(StarbaseRestException.NO_RETRY_AFTER, retryAfterFor(429, body, null));
+    assertEquals(
+        StarbaseRestException.NO_RETRY_AFTER,
+        retryAfterFor(429, body, "Wed, 28 Oct 2026 07:28:00 GMT"));
+    assertEquals(StarbaseRestException.NO_RETRY_AFTER, retryAfterFor(429, body, "-1"));
+    assertEquals(StarbaseRestException.NO_RETRY_AFTER, retryAfterFor(429, body, "12a"));
+    assertEquals(StarbaseRestException.NO_RETRY_AFTER, retryAfterFor(429, body, "1.5"));
+    assertEquals(StarbaseRestException.NO_RETRY_AFTER, retryAfterFor(429, body, ""));
+    assertEquals(
+        StarbaseRestException.NO_RETRY_AFTER,
+        retryAfterFor(429, body, "9999999999999999999"));
+  }
+
   public void testRejectsMalformedSuccessAndNonJsonHttpErrors() throws Exception {
     try (TestServer fixture = server(exchange -> respond(exchange, 200, "{\"jsonrpc\":\"2.0\"}"))) {
       HttpServer server = fixture.server();
@@ -124,6 +150,28 @@ public final class StarbaseRestTransportTest {
               () -> transport.get("api/v2/private/get_open_orders", true));
       assertEquals(503, failure.httpStatus());
       assertEquals(StarbaseRestException.NO_ERROR_CODE, failure.errorCode());
+    }
+  }
+
+  private static long retryAfterFor(int status, String body, String retryAfter)
+      throws Exception {
+    try (TestServer fixture =
+        server(
+            exchange -> {
+              if (retryAfter != null) {
+                exchange.getResponseHeaders().set("Retry-After", retryAfter);
+              }
+              respond(exchange, status, body);
+            })) {
+      StarbaseRestTransport transport =
+          new StarbaseRestTransport(
+              context(fixture.server(), "/"), new StarbaseRestCredentials("key".toCharArray()));
+      StarbaseRestException failure =
+          assertThrows(
+              StarbaseRestException.class,
+              () -> transport.get("api/v2/private/cancel_all", true));
+      assertEquals(status, failure.httpStatus());
+      return failure.retryAfterSeconds();
     }
   }
 

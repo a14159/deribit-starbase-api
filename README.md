@@ -52,11 +52,10 @@ Tests have no framework dependency. Surefire's auto-detected
 zero-argument `test*` methods; local `TestAssertions` supplies assertions. The baseline
 test verifies Java assertions are enabled.
 
-The 2026-10-28 clean run passed 384/384 tests. Two existing market-data allocation probes
-are intermittently non-zero on the reference workstation, including on the unmodified prior
-commit; see the [status handoff](docs/implementation-status.md). This proves local behavior
-only; it does not establish production readiness or replace the credential-safe
-private-environment validator.
+The latest results and known intermittent allocation probes are in the
+[status handoff](docs/implementation-status.md). Local tests prove local behavior only; they
+do not establish production readiness or replace the credential-safe private-environment
+validator.
 
 For machine-specific launch notes, copy
 [`docs/local-environment.example.md`](docs/local-environment.example.md) to ignored

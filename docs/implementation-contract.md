@@ -124,8 +124,7 @@ order. Require exact order/client/instrument identity and cumulative filled quan
 applying that event; no local cancel correlation is required and no fill is synthesized.
 Retain the exact uint16 `OrderFlags` sent with each new order. A v19 `NewOrderResponse`
 echo must equal them, with reserved bits rejected; otherwise fail the session closed before
-placement. Expose schema-native signed-long
-client-order IDs directly, reserving only the
+placement. Expose schema-native signed-long client-order IDs directly, reserving only the
 SBE int64 null value. The String compatibility path uses the pinned generator alphabet
 `0-9a-zA-Z-_` and stateless positional base-64 conversion modulo `2^64 - 1`; never use a
 bounded allocation table. Map the residues bijectively onto every signed-long value except

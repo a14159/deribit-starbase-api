@@ -1,116 +1,96 @@
 # Starbase schema manifest
 
-## Current upstream review and adoption
+Checked-in pins and implemented templates as of the 2026-10-27 audit. Source URLs, hashes,
+and protocol semantics are in [protocol-source-review.md](protocol-source-review.md).
 
-Reviewed 2026-08-27, revalidated on 2026-08-28 and 2026-09-03, and audited again on
-2026-09-16, 2026-10-04, and 2026-10-27. The legacy bundle at
-`https://statics.deribit.com/files/deribit-sbe-xmls.zip` remains SHA-256
-`4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42` and still carries
-the older order-entry v12 XML. The current binary reference instead links the direct
-production order-entry XML at
-`https://docs.deribit.com/specifications/deribit-sbe-xmls/deribit-sbe-order-api.xml`:
-schema 2101/version 19/semantic version 1.5, SHA-256
-`5A1BF2FDE696424CA35F468815D879DF096AC0B14E92A93BEA1BD1C433D58283`. Its v12-v16 delta
-adds schema negotiation in `Logon`/`LogonConf`, session-wide
-`Logon.cancelOnDisconnect` (field 68), `GATEWAY_NOT_ACTIVE` reject reason 6,
-`OrderRejectReason.MMP_MIN_FREEZE_TIME_NOT_ELAPSED` value 30, and
-`MassQuoteRejectReason.MMP_MIN_FREEZE_TIME_NOT_ELAPSED` value 9, and v16 appends required
-`quantity` and `totalFilled` `Decimal72` fields to `CancelOrderResponse` (220). The
-`OrderId` and `ClientOrderId` types remain `int64`. Version 17 changes only the schema
-version and a comment: the submitting session receives unsolicited `OrdersCanceled` when
-another session cancels its order; no message layout changes. Version 18 adds
-`OrderRejectReason.CANCEL_ONLY` value 31. Version 19 adds `NewOrderResponse` (200) field
-`flags` (`OrderFlags`, uint16) at root offset 94, growing the root block from 94 to 96 bytes
-before the unchanged groups. As of 2026-10-27, the direct testnet order-entry XML is
-byte-identical to the production-v19 XML and hash. The direct market-data XML remains
-schema 2102/version 1/semantic version 1.0, SHA-256
-`6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`.
-
-The current Binary API Reference also clarifies that an inbound server message's header
-`version` is the newest schema version at which that individual message changed, capped at
-the negotiated session version; it is not necessarily the negotiated v19 ceiling. The
-hardcoded layouts remain pinned correctly, and completed `SPEC-03` now applies
-schema-derived per-message lower bounds plus the pinned-v19 upper bound before exact
-layout/body/group validation.
-
-Formal Deribit clarification dated 2026-08-27 establishes that the Starbase REST snapshot's
-string `order_id` is the base-10 serialization of this same SBE `OrderId`; the public
-OpenAPI's UUID description is a documentation error. `SPEC-01` is therefore resolved.
-`SPEC-02` adopted the current XMLs and unconflicted REST model deltas test-first on the same
-date. `ORD-07`, `ASM-MD`, and `ASM-OE` are complete locally; consumer and private live
-validation remain.
-
-## Implemented reference pin
-
-The checked-in references below are the production hardcoded-codec baseline. Direct XML
-URLs and the production/testnet/legacy source hashes are recorded in
-[protocol-source-review.md](protocol-source-review.md).
+## Checked-in reference pins
 
 | Schema | ID | Version | Semantic version | Checked-in reference | SHA-256 |
 | --- | ---: | ---: | ---: | --- | --- |
 | Order entry | 2101 | 19 | 1.5 | `src/main/resources/schema/deribit-sbe-order-api.xml` | `5A1BF2FDE696424CA35F468815D879DF096AC0B14E92A93BEA1BD1C433D58283` |
 | Market data | 2102 | 1 | 1.0 | `src/main/resources/schema/deribit-sbe-market-data-api.xml` | `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE` |
 
-XML files are reference-only; production codecs are hardcoded/bounds-checked, never
-generated or runtime-parsed.
+Both are byte-identical to the current production and testnet downloads. XML files are
+reference-only; production codecs are hardcoded and bounds-checked, never generated or
+runtime-parsed. `.gitattributes` forces LF on the pinned XMLs so their hashes survive
+Windows checkouts.
 
-## Implemented template map
+## Order-entry schema changes
 
-| Schema | Template ID | Message | Hardcoded codec | Golden/bounds test |
-| --- | ---: | --- | --- | --- |
-| Market data | 10 | InstrumentDefinition | `InstrumentDefinitionDecoder` | `ReferenceDataDecodersTest` |
-| Market data | 11 | IndexDefinition | `IndexDefinitionDecoder` | `ReferenceDataDecodersTest` |
-| Market data | 12 | IndexInfo | `IndexInfoDecoder` | `ReferenceDataDecodersTest` |
-| Market data | 14 | InstrumentInfo | `InstrumentInfoDecoder` | `ReferenceDataDecodersTest` |
-| Market data | 15 | InstrumentRef | `InstrumentRefDecoder` | `ReferenceDataDecodersTest` |
-| Market data | 16 | InstrumentStatusUpdate | `InstrumentStatusUpdateDecoder` | `ReferenceDataDecodersTest` |
-| Market data | 20 | BidPut | `BidPutDecoder` | `BookPutDecodersTest` |
-| Market data | 21 | AskPut | `AskPutDecoder` | `BookPutDecodersTest` |
-| Market data | 22 | BidQtyReduced | `BidQtyReducedDecoder` | `BookMutationDecodersTest` |
-| Market data | 23 | AskQtyReduced | `AskQtyReducedDecoder` | `BookMutationDecodersTest` |
-| Market data | 24 | BidDelete | `BidDeleteDecoder` | `BookMutationDecodersTest` |
-| Market data | 25 | AskDelete | `AskDeleteDecoder` | `BookMutationDecodersTest` |
-| Market data | 30 | TradeSummary | `TradeSummaryDecoder` | `TradeDecodersTest` |
-| Market data | 31 | Trade | `TradeDecoder` | `TradeDecodersTest` |
-| Market data | 33 | BlockTrade | `BlockTradeDecoder` | `TradeDecodersTest` |
-| Market data | 100 | SnapshotHeader | `SnapshotHeaderDecoder` | `SnapshotDecodersTest` |
-| Market data | 101 | SnapshotTrailer | `SnapshotTrailerDecoder` | `SnapshotDecodersTest` |
-| Market data | 119 | EndOfCycle | `EndOfCycleDecoder` | `SnapshotDecodersTest` |
-| Market data | 200 | RetransmitRequest | `RetransmitRequestEncoder` | `RetransmitCodecsTest` |
-| Market data | 202 | RetransmitReject | `RetransmitRejectDecoder` | `RetransmitCodecsTest` |
+Changes relative to the legacy inputs (XML bundle v12, SDK v11). `OrderId` and
+`ClientOrderId` remain `int64`.
+
+| Version | Change |
+| --- | --- |
+| v12–v15 | `Logon`/`LogonConf` schema negotiation; session-wide `Logon.cancelOnDisconnect` (field 68); `SessionReject` `GATEWAY_NOT_ACTIVE` (6); `OrderRejectReason.MMP_MIN_FREEZE_TIME_NOT_ELAPSED` (30); `MassQuoteRejectReason` value 9 (mass quote not implemented) |
+| v16 | `CancelOrderResponse` (220) appends required `quantity` and `totalFilled` `Decimal72` at body offsets 56 and 65 (body 56 → 74 bytes) |
+| v17 | No layout change; cross-session cancellation sends unsolicited `OrdersCanceled` to the submitting session |
+| v18 | `OrderRejectReason.CANCEL_ONLY` (31) |
+| v19 | `NewOrderResponse` (200) `flags` (`OrderFlags`, uint16, id 96) at root offset 94 (root block 94 → 96 bytes), before the unchanged groups |
+
+## Market-data templates
+
+| Template ID | Message | Hardcoded codec | Golden/bounds test |
+| ---: | --- | --- | --- |
+| 10 | InstrumentDefinition | `InstrumentDefinitionDecoder` | `ReferenceDataDecodersTest` |
+| 11 | IndexDefinition | `IndexDefinitionDecoder` | `ReferenceDataDecodersTest` |
+| 12 | IndexInfo | `IndexInfoDecoder` | `ReferenceDataDecodersTest` |
+| 14 | InstrumentInfo | `InstrumentInfoDecoder` | `ReferenceDataDecodersTest` |
+| 15 | InstrumentRef | `InstrumentRefDecoder` | `ReferenceDataDecodersTest` |
+| 16 | InstrumentStatusUpdate | `InstrumentStatusUpdateDecoder` | `ReferenceDataDecodersTest` |
+| 20 | BidPut | `BidPutDecoder` | `BookPutDecodersTest` |
+| 21 | AskPut | `AskPutDecoder` | `BookPutDecodersTest` |
+| 22 | BidQtyReduced | `BidQtyReducedDecoder` | `BookMutationDecodersTest` |
+| 23 | AskQtyReduced | `AskQtyReducedDecoder` | `BookMutationDecodersTest` |
+| 24 | BidDelete | `BidDeleteDecoder` | `BookMutationDecodersTest` |
+| 25 | AskDelete | `AskDeleteDecoder` | `BookMutationDecodersTest` |
+| 30 | TradeSummary | `TradeSummaryDecoder` | `TradeDecodersTest` |
+| 31 | Trade | `TradeDecoder` | `TradeDecodersTest` |
+| 33 | BlockTrade | `BlockTradeDecoder` | `TradeDecodersTest` |
+| 100 | SnapshotHeader | `SnapshotHeaderDecoder` | `SnapshotDecodersTest` |
+| 101 | SnapshotTrailer | `SnapshotTrailerDecoder` | `SnapshotDecodersTest` |
+| 119 | EndOfCycle | `EndOfCycleDecoder` | `SnapshotDecodersTest` |
+| 200 | RetransmitRequest | `RetransmitRequestEncoder` | `RetransmitCodecsTest` |
+| 202 | RetransmitReject | `RetransmitRejectDecoder` | `RetransmitCodecsTest` |
 
 Common framing/dispatch tests: `TcpHeaderCodecTest`, `UdpPacketHeaderCodecTest`,
-`MarketDataMessageHeaderCodecTest`, and `TemplateDispatchTest`. Every template defined by
-the pinned market-data schema now has a codec. `BlockTrade` (33) is a fixed 78-byte root
-block packed in field order: `matchId` 0, `instrumentId` 8, `blockTradeId` 16, optional
-`blockRfqId` 24 (null `Long.MIN_VALUE`), `fillQtyMantissa` 32, `fillPrice` 40, `markPrice`
-48, `indexPrice` 56, optional `impliedVolatility` double 64 (null NaN), `takerFlags` uint32
-72, and `numberOfLegs` uint16 76. The message is accepted at its unpadded 94 bytes or
-aligned 96 bytes with zero padding; header transaction flags delimit each per-instrument
-block-trade event. A datagram carrying a template outside the pinned schema is counted as
-an unknown template and fails the assembly closed until restart.
+`MarketDataMessageHeaderCodecTest`, and `TemplateDispatchTest`. Every template in the pinned
+MD schema has a codec; a datagram carrying a template outside it is counted as an unknown
+template and fails the assembly closed until restart.
 
-### Order-entry templates
+`BlockTrade` (33) is a fixed 78-byte root block packed in field order:
 
-All listed layouts are unchanged from the originally implemented subset except `Logon`
-(68-byte body), `LogonConfirmation` (6-byte body), and the versioned
-`CancelOrderResponse` and `NewOrderResponse`. Encoders stamp production v19, and the
-assembled lifecycle requires `LogonConf.schemaVersion` to echo negotiated v19. The
-dispatcher accepts each template's schema-derived compatible version floor through the
-pinned v19 ceiling, while retaining exact template lengths and bounds checks. In
-particular, current `LogonConf`, `Heartbeat`, and `OrderPlaced` layouts accept their
-documented header stamps 12, 0, and 8. `CancelOrderResponse` accepts the legacy 56-byte
-body through v15 and requires the v16–v19 74-byte body with non-null `quantity` and
-`totalFilled`; the public lifecycle validates those values against exact local quantity
-and fill state before cancellation. `NewOrderResponse` uses the legacy 94-byte root block
-through header v18 and the 96-byte root block at v19, with echoed `flags` (uint16, bits 0–5
-known) at root offset 94 before the unchanged `fills`/`legs` groups. Reserved flag bits
-fail closed, and the public lifecycle requires an exact match with the retained submitted
-wire flags before placement. `NewOrderReject`/`AmendOrderReject` accept
-`OrderRejectReason` 0–31, including v18 `CANCEL_ONLY`. Testnet uses the same v19 XML as
-production. Unsolicited cross-session cancellation uses unchanged template 310/header v5
-and compares exact identity and cumulative filled quantity without requiring a local
-cancel correlation.
+| Offset | Field | Type |
+| ---: | --- | --- |
+| 0 | `matchId` | int64 |
+| 8 | `instrumentId` | int64 |
+| 16 | `blockTradeId` | int64 |
+| 24 | `blockRfqId` | optional int64 (null `Long.MIN_VALUE`) |
+| 32 | `fillQtyMantissa` | int64 |
+| 40 | `fillPrice` | `Price9` |
+| 48 | `markPrice` | `Price9` |
+| 56 | `indexPrice` | `Price9` |
+| 64 | `impliedVolatility` | optional double (null NaN) |
+| 72 | `takerFlags` | `TradeFlags` uint32 |
+| 76 | `numberOfLegs` | uint16 |
+
+The message is accepted at its unpadded 94 bytes or aligned 96 bytes with zero padding.
+
+## Order-entry templates
+
+Encoders stamp v19, and the lifecycle requires `LogonConf.schemaVersion` to echo v19. The
+dispatcher accepts each template's schema-derived version floor through the v19 ceiling
+with exact lengths and bounds checks; for example `LogonConf`, `Heartbeat`, and
+`OrderPlaced` accept header stamps 12, 0, and 8. Notable layouts:
+
+- `Logon` has a 68-byte body and `LogonConfirmation` a 6-byte body.
+- `CancelOrderResponse` is exactly 56 bytes through v15 and 74 bytes at v16–v19 with
+  non-null `quantity` and `totalFilled`.
+- `NewOrderResponse` has a 94-byte root block through header v18 and 96 bytes at v19, with
+  echoed `flags` (bits 0–5 known, reserved bits fail closed) before the `fills` (25-byte
+  entries) and `legs` (34-byte entries) groups.
+- `NewOrderReject`/`AmendOrderReject` accept `OrderRejectReason` 0–31.
+- `OrdersCanceled` (310) keeps header v5.
 
 | Template ID | Message | Hardcoded codec(s) | Golden/bounds test |
 | ---: | --- | --- | --- |
@@ -140,22 +120,22 @@ cancel correlation.
 | 310 | OrdersCanceled | `OrdersCanceledDecoder` | `OrderLifecycleCodecsTest` |
 | 312 | OrderPlaced | `OrderPlacedDecoder` | `OrderLifecycleCodecsTest` |
 
-`OrderEntryMessageDispatcherTest` proves pre-callback validation of all 25 layouts;
-`NewOrderCodecsTest` pins both `NewOrderResponse` root-block versions. Other
-schema-v11 IDs fail closed; recognition by `OrderEntryTemplateDispatch` does not imply
-codec/behavior support.
+`OrderEntryMessageDispatcherTest` proves pre-callback validation of all 25 layouts. Other
+schema template IDs fail closed; recognition by `OrderEntryTemplateDispatch` does not imply
+codec or behavior support.
 
 ## Official market-data replay fixture
 
-Reviewed 2026-07-30: `https://statics.deribit.com/files/starbase-market-data.pcap`;
-checked in as `src/test/resources/pcap/starbase-market-data.pcap`; 5,344,700 bytes; SHA-256
-`980B9D78E46057A5271CB1F99184A82920A5964A0DA959276FACAF4FC8F869CF`.
+`https://statics.deribit.com/files/starbase-market-data.pcap`, checked in as
+`src/test/resources/pcap/starbase-market-data.pcap` (5,344,700 bytes, SHA-256
+`980B9D78E46057A5271CB1F99184A82920A5964A0DA959276FACAF4FC8F869CF`).
 
-`OfficialPcapReplayTest` sends all 13,306 packets/37,745 messages through
-`MarketDataPacketDispatcher` and checks packet/template/channel counts plus first
-instrument/snapshot facts against `starbase-market-data.trace`. The capture acts at
-version 0 where the pin is 1; production accepts 0–1 and rejects later versions.
-Zero-filled eight-byte padding included in advertised lengths is validated byte-for-byte.
-The unchanged capture contains no template 12, 14, or 15 messages, so it does not validate
-the corrected MD-v1 reference-data layouts; current golden/boundary coverage is in
-`ReferenceDataDecodersTest`.
+- `OfficialPcapReplayTest` sends all 13,306 packets/37,745 messages through
+  `MarketDataPacketDispatcher` and checks packet/template/channel counts plus first
+  instrument/snapshot facts against `starbase-market-data.trace`.
+- `PcapToChannelsReplayTest` on channel 44853 yields 2,115 reference and 861 coherent book
+  callbacks, hash `7987323303025136854`, zero trades, and a ready final book.
+- The capture uses MD header version 0 where the pin is 1; production accepts 0–1 and
+  rejects later versions. Zero-filled eight-byte padding is validated byte-for-byte.
+- The capture has no templates 12, 14, 15, or 33 and no trades; `ReferenceDataDecodersTest`
+  and `TradeDecodersTest` cover those layouts.

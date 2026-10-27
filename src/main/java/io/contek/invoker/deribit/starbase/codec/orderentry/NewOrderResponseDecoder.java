@@ -8,20 +8,28 @@ import io.contek.invoker.deribit.starbase.codec.common.WirePrimitives;
 import io.contek.invoker.deribit.starbase.common.StarbaseProtocolException;
 import java.nio.ByteBuffer;
 
-/** Hardcoded decoder for order-entry schema-v11 NewOrderResponse (template 200). */
+/**
+ * Hardcoded decoder for order-entry NewOrderResponse (template 200), through schema v19. Header
+ * stamps below v19 carry the 94-byte root block; v19 appends the echoed {@code OrderFlags} at root
+ * offset 94 before the unchanged fills and legs groups.
+ */
 public final class NewOrderResponseDecoder {
 
   public static final int TEMPLATE_ID = 200;
-  public static final int BLOCK_LENGTH = 94;
+  public static final int LEGACY_BLOCK_LENGTH = 94;
+  public static final int BLOCK_LENGTH = 96;
+  public static final int FLAGS_VERSION = 19;
   public static final int GROUP_DIMENSIONS_LENGTH = 4;
   public static final int FILL_BLOCK_LENGTH = 25;
   public static final int LEG_BLOCK_LENGTH = 34;
+
+  private static final int FLAGS_OFFSET = 94;
 
   public static void validate(ByteBuffer buffer, int offset) {
     OrderEntryTemplateDispatch.validateFrame(buffer, offset);
     requireTemplate(buffer, offset);
     int messageLength = TcpHeaderCodec.messageLength(buffer, offset);
-    int fills = fillsDimensions(offset);
+    int fills = fillsDimensions(buffer, offset);
     WirePrimitives.requireBounds(buffer, fills, GROUP_DIMENSIONS_LENGTH);
     int fillBlock = Short.toUnsignedInt(buffer.getShort(fills));
     int fillCount = Short.toUnsignedInt(buffer.getShort(fills + 2));
@@ -129,8 +137,20 @@ public final class NewOrderResponseDecoder {
     return buffer.get(body(offset) + 93);
   }
 
+  public static boolean hasFlags(ByteBuffer buffer, int offset) {
+    return TcpHeaderCodec.version(buffer, offset) >= FLAGS_VERSION;
+  }
+
+  /** Returns the echoed {@code OrderFlags} bits; absent below schema v19. */
+  public static int flags(ByteBuffer buffer, int offset) {
+    if (!hasFlags(buffer, offset)) {
+      throw new StarbaseProtocolException("NewOrderResponse flags are absent before schema v19");
+    }
+    return Short.toUnsignedInt(buffer.getShort(body(offset) + FLAGS_OFFSET));
+  }
+
   public static int fillCount(ByteBuffer buffer, int offset) {
-    return Short.toUnsignedInt(buffer.getShort(fillsDimensions(offset) + 2));
+    return Short.toUnsignedInt(buffer.getShort(fillsDimensions(buffer, offset) + 2));
   }
 
   public static long fillMatchId(ByteBuffer buffer, int offset, int index) {
@@ -178,7 +198,7 @@ public final class NewOrderResponseDecoder {
   }
 
   private static void validateFixed(ByteBuffer buffer, int offset) {
-    WirePrimitives.requireBounds(buffer, body(offset), BLOCK_LENGTH);
+    WirePrimitives.requireBounds(buffer, body(offset), rootBlockLength(buffer, offset));
     requireRequiredDecimal(buffer, body(offset) + 56, true, "quantity");
     requireRequiredDecimal(buffer, body(offset) + 65, false, "totalFilled");
     requireRequiredDecimal(buffer, body(offset) + 74, false, "visibleQty");
@@ -193,6 +213,10 @@ public final class NewOrderResponseDecoder {
     }
     if (reason < 0 || reason > 17) {
       throw new StarbaseProtocolException("invalid NewOrderResponse cancel reason");
+    }
+    if (hasFlags(buffer, offset)
+        && (flags(buffer, offset) & ~NewOrderRequestEncoder.KNOWN_FLAGS) != 0) {
+      throw new StarbaseProtocolException("invalid NewOrderResponse flags");
     }
   }
 
@@ -217,7 +241,7 @@ public final class NewOrderResponseDecoder {
   private static int fillEntry(ByteBuffer buffer, int offset, int index) {
     int count = fillCount(buffer, offset);
     requireIndex(index, count, "fill");
-    return fillsDimensions(offset) + GROUP_DIMENSIONS_LENGTH + index * FILL_BLOCK_LENGTH;
+    return fillsDimensions(buffer, offset) + GROUP_DIMENSIONS_LENGTH + index * FILL_BLOCK_LENGTH;
   }
 
   private static int legEntry(ByteBuffer buffer, int offset, int index) {
@@ -227,11 +251,15 @@ public final class NewOrderResponseDecoder {
   }
 
   private static int legsDimensions(ByteBuffer buffer, int offset) {
-    return fillsDimensions(offset) + GROUP_DIMENSIONS_LENGTH + fillCount(buffer, offset) * FILL_BLOCK_LENGTH;
+    return fillsDimensions(buffer, offset) + GROUP_DIMENSIONS_LENGTH + fillCount(buffer, offset) * FILL_BLOCK_LENGTH;
   }
 
-  private static int fillsDimensions(int offset) {
-    return body(offset) + BLOCK_LENGTH;
+  private static int fillsDimensions(ByteBuffer buffer, int offset) {
+    return body(offset) + rootBlockLength(buffer, offset);
+  }
+
+  private static int rootBlockLength(ByteBuffer buffer, int offset) {
+    return hasFlags(buffer, offset) ? BLOCK_LENGTH : LEGACY_BLOCK_LENGTH;
   }
 
   private static int body(int offset) {

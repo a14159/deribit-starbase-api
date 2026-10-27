@@ -5,7 +5,7 @@ Java 25 components for Deribit's Starbase interfaces. Maven coordinates:
 
 ## Status
 
-The local implementation is current through order-entry schema v17 and market-data schema
+The local implementation is current through order-entry schema v19 and market-data schema
 v1. It remains an unintegrated prototype—not production-ready—until downstream integration,
 private-environment validation, and operational/rollback validation complete. Reconnect
 recovery uses Deribit's clarified exact mapping from the Starbase REST decimal-string
@@ -51,9 +51,11 @@ Tests have no framework dependency. Surefire's auto-detected
 zero-argument `test*` methods; local `TestAssertions` supplies assertions. The baseline
 test verifies Java assertions are enabled.
 
-The 2026-10-04 clean run passed 363/363 tests. This proves local behavior only; it does not
-establish production readiness or replace the credential-safe private-environment
-validator.
+The 2026-10-27 clean run passed 370/370 tests. Two existing market-data allocation probes
+are intermittently non-zero on the reference workstation, including on the unmodified prior
+commit; see the [status handoff](docs/implementation-status.md). This proves local behavior
+only; it does not establish production readiness or replace the credential-safe
+private-environment validator.
 
 For machine-specific launch notes, copy
 [`docs/local-environment.example.md`](docs/local-environment.example.md) to ignored

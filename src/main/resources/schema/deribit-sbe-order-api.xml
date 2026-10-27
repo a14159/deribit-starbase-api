@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- v17: submitter receives an unsolicited OrdersCanceled when another session cancels its order -->
+<!-- v19: NewOrderResponse echoes back the submitted order flags -->
+<!-- v18: global algo cancel-only mode — new algo parent submissions rejected with CANCEL_ONLY -->
 <sbe:messageSchema xmlns:sbe="http://fixprotocol.io/2016/sbe"
                    package="cb.deribit.gateway.sbe.codec.order"
                    id="2101"
-                   version="17"
+                   version="19"
                    semanticVersion="1.5"
                    description="Deribit SBE Order Gateway API"
                    byteOrder="littleEndian"
@@ -178,6 +179,7 @@
             <validValue name="ORDER_SIZE_LIMIT_EXCEEDED" description="open order aggregate size limit exceeded">28</validValue>
             <validValue name="MEMBER_SPEED_BUMP_LIMIT_EXCEEDED" sinceVersion="6" description="member has too many live speed-bumped orders">29</validValue>
             <validValue name="MMP_MIN_FREEZE_TIME_NOT_ELAPSED" sinceVersion="15" description="MMP minimum freeze duration not yet elapsed">30</validValue>
+            <validValue name="CANCEL_ONLY" sinceVersion="18" description="only cancel-only orders can be submitted">31</validValue>
         </enum>
         <enum name="MassQuoteRejectReason" encodingType="int8">
             <validValue name="SYSTEM_ERROR">0</validValue>
@@ -367,6 +369,7 @@
         <field name="side"               id="92" type="Side"/>
         <field name="status"             id="93" type="OrderStatus"/>
         <field name="cancelReason"       id="94" type="CancelReason"/>
+        <field name="flags"              id="96" type="OrderFlags" sinceVersion="19" description="order flags echoed back from the submitted order"/>
         <group name="fills"              id="1000">
             <field name="matchId"          id="1008" type="FillId"/>
             <field name="fillPrice"        id="1016" type="Price9"/>

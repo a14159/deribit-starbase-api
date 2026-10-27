@@ -114,10 +114,13 @@ Never auto-close idle sessions: disconnect can cancel live orders. Unexpected di
 
 Maintain one primitive cross-session order store. De-duplicate immediate and later
 unsolicited fills in one exact match-ID domain; retain origin session for cross-session
-lifecycle. The current pinned v17 session receives unsolicited `OrdersCanceled` on the
-submitting session when another session cancels its order. Require exact order/client/
-instrument identity and cumulative filled quantity before applying that event; no local
-cancel correlation is required and no fill is synthesized. Expose schema-native signed-long
+lifecycle. Sessions negotiated at v17 or later, including the pinned v19 session, receive
+unsolicited `OrdersCanceled` on the submitting session when another session cancels its
+order. Require exact order/client/instrument identity and cumulative filled quantity before
+applying that event; no local cancel correlation is required and no fill is synthesized.
+Retain the exact uint16 `OrderFlags` sent with each new order. A v19 `NewOrderResponse`
+echo must equal them, with reserved bits rejected; otherwise fail the session closed before
+placement. Expose schema-native signed-long
 client-order IDs directly, reserving only the
 SBE int64 null value. The String compatibility path uses the pinned generator alphabet
 `0-9a-zA-Z-_` and stateless positional base-64 conversion modulo `2^64 - 1`; never use a

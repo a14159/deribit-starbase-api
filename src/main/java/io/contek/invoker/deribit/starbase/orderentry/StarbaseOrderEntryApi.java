@@ -303,7 +303,8 @@ public final class StarbaseOrderEntryApi extends AbstractStarbaseApi {
           side,
           priceMantissa,
           quantityMantissa,
-          quantityExponent);
+          quantityExponent,
+          flags);
       stageNew(
           1,
           clientOrderId,
@@ -384,7 +385,8 @@ public final class StarbaseOrderEntryApi extends AbstractStarbaseApi {
           side,
           Long.MIN_VALUE,
           quantityMantissa,
-          quantityExponent);
+          quantityExponent,
+          flags | NewOrderRequestEncoder.MARKET_LIMIT);
       stageNew(
           2,
           clientOrderId,
@@ -613,6 +615,11 @@ public final class StarbaseOrderEntryApi extends AbstractStarbaseApi {
     if (orders.quantityExponentByClientOrderId(clientOrderId) != exponent
         || NewOrderResponseDecoder.totalFilledExponent(buffer, offset) != exponent) {
       throw new StarbaseProtocolException("new-order response quantity exponent mismatch");
+    }
+    if (NewOrderResponseDecoder.hasFlags(buffer, offset)
+        && NewOrderResponseDecoder.flags(buffer, offset)
+            != orders.orderFlagsByClientOrderId(clientOrderId)) {
+      throw new StarbaseProtocolException("new-order response echoed flags mismatch");
     }
     int status = NewOrderResponseDecoder.status(buffer, offset);
     long orderId = NewOrderResponseDecoder.orderId(buffer, offset);
@@ -1033,10 +1040,11 @@ public final class StarbaseOrderEntryApi extends AbstractStarbaseApi {
       int side,
       long price,
       long quantity,
-      int quantityExponent) {
+      int quantityExponent,
+      int wireFlags) {
     int stateSide = side == 1 ? 1 : 2;
     if (!orders.registerPending(
-        clientOrderId, instrumentId, stateSide, price, quantity, quantityExponent)) {
+        clientOrderId, instrumentId, stateSide, price, quantity, quantityExponent, wireFlags)) {
       throw new IllegalStateException("client order is already live");
     }
   }

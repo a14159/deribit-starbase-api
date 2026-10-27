@@ -11,6 +11,8 @@ public final class LocalOrderStateStore {
   public static final int STATE_CANCELED = 5;
   public static final int STATE_REJECTED = 6;
   public static final int STATE_QUEUED = 7;
+  /** Flags of an order registered without its submitted wire flags; never equal to an echo. */
+  public static final int UNKNOWN_ORDER_FLAGS = -1;
 
   static final int RECONCILIATION_MATCHED = 0;
   static final int RECONCILIATION_INVALID_IDENTITY = 1;
@@ -28,6 +30,7 @@ public final class LocalOrderStateStore {
   private final long[] prices;
   private final long[] originalQuantities;
   private final byte[] quantityExponents;
+  private final int[] orderFlags;
   private final long[] remainingQuantities;
   private final long[] originSessionIds;
   private final long[] originEventSequences;
@@ -49,6 +52,7 @@ public final class LocalOrderStateStore {
     prices = new long[capacity];
     originalQuantities = new long[capacity];
     quantityExponents = new byte[capacity];
+    orderFlags = new int[capacity];
     remainingQuantities = new long[capacity];
     originSessionIds = new long[capacity];
     originEventSequences = new long[capacity];
@@ -70,6 +74,33 @@ public final class LocalOrderStateStore {
       long price,
       long quantity,
       int quantityExponent) {
+    return register(
+        clientOrderId, instrumentId, side, price, quantity, quantityExponent, UNKNOWN_ORDER_FLAGS);
+  }
+
+  /** Registers a pending order with the exact uint16 {@code OrderFlags} sent on the wire. */
+  public synchronized boolean registerPending(
+      long clientOrderId,
+      long instrumentId,
+      int side,
+      long price,
+      long quantity,
+      int quantityExponent,
+      int wireFlags) {
+    if ((wireFlags & ~0xFFFF) != 0) {
+      throw new IllegalArgumentException("wireFlags must be a uint16 OrderFlags value");
+    }
+    return register(clientOrderId, instrumentId, side, price, quantity, quantityExponent, wireFlags);
+  }
+
+  private boolean register(
+      long clientOrderId,
+      long instrumentId,
+      int side,
+      long price,
+      long quantity,
+      int quantityExponent,
+      int wireFlags) {
     requireId(clientOrderId, "clientOrderId");
     requireId(instrumentId, "instrumentId");
     if (side != 1 && side != 2) {
@@ -96,6 +127,7 @@ public final class LocalOrderStateStore {
     prices[slot] = price;
     originalQuantities[slot] = quantity;
     quantityExponents[slot] = (byte) quantityExponent;
+    orderFlags[slot] = wireFlags;
     remainingQuantities[slot] = quantity;
     size++;
     return true;
@@ -380,6 +412,15 @@ public final class LocalOrderStateStore {
     return quantityExponents[slot];
   }
 
+  /** Returns the submitted wire flags, or {@link #UNKNOWN_ORDER_FLAGS} for legacy registration. */
+  public synchronized int orderFlagsByClientOrderId(long clientOrderId) {
+    int slot = findByClientId(clientOrderId);
+    if (slot < 0) {
+      throw new IllegalArgumentException("unknown clientOrderId: " + clientOrderId);
+    }
+    return orderFlags[slot];
+  }
+
   public synchronized int size() {
     return size;
   }
@@ -506,6 +547,7 @@ public final class LocalOrderStateStore {
     prices[slot] = 0;
     originalQuantities[slot] = 0;
     quantityExponents[slot] = 0;
+    orderFlags[slot] = 0;
     remainingQuantities[slot] = 0;
     originSessionIds[slot] = 0;
     originEventSequences[slot] = 0;

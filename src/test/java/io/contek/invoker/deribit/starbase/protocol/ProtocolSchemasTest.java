@@ -16,9 +16,9 @@ public final class ProtocolSchemasTest {
     assertSchema(
         ProtocolSchemas.ORDER_ENTRY,
         2101,
-        17,
+        19,
         "1.5",
-        "6A721ED6161ACFEAD838ACE8D6F4F9A44347C0B293BEB99B9E9ED3D3D57B3B91");
+        "5A1BF2FDE696424CA35F468815D879DF096AC0B14E92A93BEA1BD1C433D58283");
     assertSchema(
         ProtocolSchemas.MARKET_DATA,
         2102,
@@ -27,7 +27,7 @@ public final class ProtocolSchemasTest {
         "6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE");
     assertTrue(ProtocolSchemas.ORDER_ENTRY_SOURCE_URL.endsWith("deribit-sbe-order-api.xml"));
     assertTrue(ProtocolSchemas.MARKET_DATA_SOURCE_URL.endsWith("deribit-sbe-market-data-api.xml"));
-    assertEquals("2026-10-04", ProtocolSchemas.REVIEW_DATE);
+    assertEquals("2026-10-27", ProtocolSchemas.REVIEW_DATE);
   }
 
   private static void assertSchema(

@@ -15,6 +15,7 @@ import io.contek.invoker.deribit.starbase.codec.orderentry.LogonConfirmationCode
 import io.contek.invoker.deribit.starbase.codec.orderentry.LogonDecoder;
 import io.contek.invoker.deribit.starbase.codec.orderentry.MassCancelRequestDecoder;
 import io.contek.invoker.deribit.starbase.codec.orderentry.NewOrderRequestDecoder;
+import io.contek.invoker.deribit.starbase.codec.orderentry.NewOrderRequestEncoder;
 import io.contek.invoker.deribit.starbase.codec.orderentry.ResendRequestCodec;
 import io.contek.invoker.deribit.starbase.codec.orderentry.TestRequestCodec;
 import io.contek.invoker.deribit.starbase.common.GatewaySide;
@@ -579,6 +580,83 @@ public final class StarbaseOrderEntryAssemblyTest {
     }
   }
 
+  public void testVersionNineteenNewOrderResponsesRequireTheExactSubmittedWireFlags()
+      throws Exception {
+    MutableClock clock = new MutableClock();
+    ScriptedTransport sideA = new ScriptedTransport();
+    ScriptedTransport sideB = new ScriptedTransport();
+    OpenOrderRecoveryCache recovery =
+        new OpenOrderRecoveryCache(
+            clock, OpenOrderRecoveryCache.MINIMUM_REFRESH_INTERVAL, List::of);
+    try (StarbaseCredentials credentialsA = credentials('a');
+        StarbaseCredentials credentialsB = credentials('b');
+        StarbaseOrderEntryApi api =
+            pairedApi(clock, credentialsA, credentialsB, recovery, sideA, sideB)) {
+      api.setReferenceDataReady(true);
+      api.start();
+      await(() -> sideA.outboundCount() == 1 && sideB.outboundCount() == 1);
+      sideA.enqueue(logonConfirmation(1, 1));
+      sideB.enqueue(logonConfirmation(1, 1));
+      await(() -> api.isReady(GatewaySide.A) && api.isReady(GatewaySide.B));
+
+      long limitCorrelation =
+          api.newLimit(501, 501, 25_000_000_000L, 10, -2, true, 0, 0, 1, 0, 0x13, 0);
+      await(() -> sideA.outboundCount() == 2);
+      assertEquals(0x13, NewOrderRequestDecoder.flags(sideA.outboundFrame(1), 0));
+      sideA.enqueue(
+          echoedFlags(newOrderResponse(2, 2, 501, limitCorrelation, 9_501, 501, 10, 0), 0x13));
+      await(() -> api.orderStateByOrderId(9_501) == LocalOrderStateStore.STATE_OPEN);
+
+      long marketCorrelation = api.newMarket(502, 501, 10, -2, true, 0, 0, 1, 0, 0x01, 0);
+      await(() -> sideA.outboundCount() == 3);
+      int marketWireFlags = 0x01 | NewOrderRequestEncoder.MARKET_LIMIT;
+      assertEquals(marketWireFlags, NewOrderRequestDecoder.flags(sideA.outboundFrame(2), 0));
+      sideA.enqueue(
+          echoedFlags(
+              newOrderResponseOutcome(
+                  3, 3, 502, marketCorrelation, 9_502, 501, 10, 2, 8_502, 10),
+              marketWireFlags));
+      await(() -> api.orderStateByOrderId(9_502) == LocalOrderStateStore.STATE_FILLED);
+
+      long legacyCorrelation =
+          api.newLimit(503, 501, 25_000_000_000L, 10, -2, true, 0, 0, 1, 0, 0x02, 0);
+      await(() -> sideA.outboundCount() == 4);
+      sideA.enqueue(newOrderResponse(4, 4, 503, legacyCorrelation, 9_503, 501, 10, 0));
+      await(() -> api.orderStateByOrderId(9_503) == LocalOrderStateStore.STATE_OPEN);
+      assertTrue(api.isReady(GatewaySide.A));
+    }
+  }
+
+  public void testVersionNineteenEchoedFlagMismatchFailsClosedBeforePlacement()
+      throws Exception {
+    MutableClock clock = new MutableClock();
+    ScriptedTransport sideA = new ScriptedTransport();
+    ScriptedTransport sideB = new ScriptedTransport();
+    OpenOrderRecoveryCache recovery =
+        new OpenOrderRecoveryCache(
+            clock, OpenOrderRecoveryCache.MINIMUM_REFRESH_INTERVAL, List::of);
+    try (StarbaseCredentials credentialsA = credentials('a');
+        StarbaseCredentials credentialsB = credentials('b');
+        StarbaseOrderEntryApi api =
+            pairedApi(clock, credentialsA, credentialsB, recovery, sideA, sideB)) {
+      api.setReferenceDataReady(true);
+      api.start();
+      await(() -> sideA.outboundCount() == 1 && sideB.outboundCount() == 1);
+      sideA.enqueue(logonConfirmation(1, 1));
+      sideB.enqueue(logonConfirmation(1, 1));
+      await(() -> api.isReady(GatewaySide.A) && api.isReady(GatewaySide.B));
+
+      long correlation =
+          api.newLimit(504, 501, 25_000_000_000L, 10, -2, true, 0, 0, 1, 0, 0x02, 0);
+      await(() -> sideA.outboundCount() == 2);
+      sideA.enqueue(
+          echoedFlags(newOrderResponse(2, 2, 504, correlation, 9_504, 501, 10, 0), 0x00));
+      await(() -> !api.isReady());
+      assertEquals(LocalOrderStateStore.STATE_PENDING, api.orderStateByClientOrderId(504));
+      assertEquals(LocalOrderStateStore.STATE_EMPTY, api.orderStateByOrderId(9_504));
+    }
+  }
+
   public void testCancelResponseQuantityMismatchFailsClosed() throws Exception {
     MutableClock clock = new MutableClock();
     ScriptedTransport sideA = new ScriptedTransport();
@@ -799,13 +877,13 @@ public final class StarbaseOrderEntryAssemblyTest {
 
   private static void assertLogon(ByteBuffer frame) {
     LogonDecoder.validate(frame, 0);
-    assertEquals(17, LogonDecoder.schemaVersion(frame, 0));
+    assertEquals(19, LogonDecoder.schemaVersion(frame, 0));
     assertEquals(1, LogonDecoder.resetSequenceNumber(frame, 0));
   }
 
   private static ByteBuffer logonConfirmation(long sequence, long acknowledgment) {
     ByteBuffer frame = frame(40);
-    LogonConfirmationCodec.encode(frame, 0, 1, 17, sequence, acknowledgment, 1);
+    LogonConfirmationCodec.encode(frame, 0, 1, 19, sequence, acknowledgment, 1);
     frame.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 12);
     return frame;
   }
@@ -893,6 +971,25 @@ public final class StarbaseOrderEntryAssemblyTest {
     }
     frame.putShort(legs, (short) 34);
     frame.putShort(legs + 2, (short) 0);
+    TcpHeaderCodec.zeroPadding(frame, 0, messageLength);
+    return frame;
+  }
+
+  /** Re-stamps a legacy NewOrderResponse fixture at v19 with flags before its unchanged groups. */
+  private static ByteBuffer echoedFlags(ByteBuffer legacy, int flags) {
+    int legacyLength = TcpHeaderCodec.messageLength(legacy, 0);
+    int messageLength = legacyLength + 2;
+    int flagsOffset = TcpHeaderCodec.ENCODED_LENGTH + 94;
+    ByteBuffer frame = frame((messageLength + 7) & ~7);
+    for (int index = 0; index < flagsOffset; index++) {
+      frame.put(index, legacy.get(index));
+    }
+    frame.putShort(flagsOffset, (short) flags);
+    for (int index = flagsOffset; index < legacyLength; index++) {
+      frame.put(index + 2, legacy.get(index));
+    }
+    frame.putShort(TcpHeaderCodec.MESSAGE_LENGTH_OFFSET, (short) messageLength);
+    frame.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 19);
     TcpHeaderCodec.zeroPadding(frame, 0, messageLength);
     return frame;
   }

@@ -6,7 +6,7 @@ import io.contek.invoker.deribit.starbase.codec.common.TcpHeaderCodec;
 import io.contek.invoker.deribit.starbase.common.StarbaseProtocolException;
 import java.nio.ByteBuffer;
 
-/** Hardcoded decoder for order-entry CancelOrderResponse (template 220), through schema v17. */
+/** Hardcoded decoder for order-entry CancelOrderResponse (template 220), through schema v19. */
 public final class CancelOrderResponseDecoder {
 
   public static final int TEMPLATE_ID = 220;

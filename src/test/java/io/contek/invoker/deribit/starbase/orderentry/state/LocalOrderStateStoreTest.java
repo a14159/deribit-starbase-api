@@ -88,6 +88,32 @@ public final class LocalOrderStateStoreTest {
     assertEquals(LocalOrderStateStore.STATE_EMPTY, store.stateByClientOrderId(1));
   }
 
+  public void testRetainsExactSubmittedOrderFlagsUntilTerminalRelease() {
+    LocalOrderStateStore store = new LocalOrderStateStore(2);
+    assertTrue(store.registerPending(101, 5001, 1, 20, 1_000, -2, 0x3f));
+    assertTrue(store.registerPending(102, 5001, 2, 20, 1_000, -2, 0));
+    assertEquals(0x3f, store.orderFlagsByClientOrderId(101));
+    assertEquals(0, store.orderFlagsByClientOrderId(102));
+    assertTrue(store.place(11, 1, 101, 9001, 1_000));
+    assertEquals(0x3f, store.orderFlagsByClientOrderId(101));
+
+    assertTrue(store.reject(11, 2, 102));
+    assertTrue(store.releaseTerminalByClientOrderId(102));
+    assertThrows(IllegalArgumentException.class, () -> store.orderFlagsByClientOrderId(102));
+    assertTrue(store.registerPending(103, 5001, 1, 20, 1_000));
+    assertEquals(
+        LocalOrderStateStore.UNKNOWN_ORDER_FLAGS, store.orderFlagsByClientOrderId(103));
+
+    LocalOrderStateStore invalid = new LocalOrderStateStore(1);
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> invalid.registerPending(1, 1, 1, 1, 1, 0, 0x1_0000));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> invalid.registerPending(1, 1, 1, 1, 1, 0, -2));
+    assertEquals(0, invalid.size());
+  }
+
   public void testInvalidInputFailsBeforeMutation() {
     assertThrows(IllegalArgumentException.class, () -> new LocalOrderStateStore(0));
     LocalOrderStateStore store = new LocalOrderStateStore(1);

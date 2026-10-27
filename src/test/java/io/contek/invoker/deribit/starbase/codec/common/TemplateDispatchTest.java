@@ -46,14 +46,14 @@ public final class TemplateDispatchTest {
 
   public void testCompleteFramesRequirePinnedVersionKnownTemplateAndValidBounds() {
     ByteBuffer order = ByteBuffer.allocate(40).order(ByteOrder.LITTLE_ENDIAN);
-    TcpHeaderCodec.encode(order, 0, 0, 32, 100, 17, 1, 0, 2);
+    TcpHeaderCodec.encode(order, 0, 0, 32, 100, 19, 1, 0, 2);
     assertEquals(100, OrderEntryTemplateDispatch.validateFrame(order, 0));
 
-    order.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 18);
+    order.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 20);
     assertThrows(
         StarbaseProtocolException.class,
         () -> OrderEntryTemplateDispatch.validateFrame(order, 0));
-    order.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 17);
+    order.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 19);
     order.putShort(TcpHeaderCodec.MESSAGE_TYPE_ID_OFFSET, (short) 9999);
     assertThrows(
         StarbaseProtocolException.class,
@@ -104,6 +104,10 @@ public final class TemplateDispatchTest {
       currentLayout.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 17);
       assertEquals(templateId, OrderEntryTemplateDispatch.validateFrame(currentLayout, 0));
       currentLayout.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 18);
+      assertEquals(templateId, OrderEntryTemplateDispatch.validateFrame(currentLayout, 0));
+      currentLayout.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 19);
+      assertEquals(templateId, OrderEntryTemplateDispatch.validateFrame(currentLayout, 0));
+      currentLayout.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 20);
       assertThrows(
           StarbaseProtocolException.class,
           () -> OrderEntryTemplateDispatch.validateFrame(currentLayout, 0));
@@ -129,7 +133,7 @@ public final class TemplateDispatchTest {
     }
     bean.setThreadAllocatedMemoryEnabled(true);
     ByteBuffer order = ByteBuffer.allocateDirect(32).order(ByteOrder.LITTLE_ENDIAN);
-    TcpHeaderCodec.encode(order, 0, 0, 32, 100, 17, 1, 0, 2);
+    TcpHeaderCodec.encode(order, 0, 0, 32, 100, 19, 1, 0, 2);
     ByteBuffer market = marketMessage(20, 1, 16);
     for (int iteration = 0; iteration < 100_000; iteration++) {
       exercise(order, market);

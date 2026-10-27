@@ -112,7 +112,7 @@ public final class OrderEntryMessageDispatcherTest {
         StarbaseProtocolException.class,
         () -> OrderEntryMessageDispatcher.dispatch(unknown, 0, handler));
 
-    ByteBuffer future = headerOnlyFrame(310, 17);
+    ByteBuffer future = headerOnlyFrame(310, 20);
     assertThrows(
         StarbaseProtocolException.class,
         () -> OrderEntryMessageDispatcher.dispatch(future, 0, handler));

@@ -174,12 +174,18 @@ public final class CancelOrderCodecsTest {
 
   public void testVersionSeventeenRetainsVersionSixteenCancelResponseLayout() {
     ByteBuffer response = versionSixteenCancelResponse(12, 5, -2);
-    response.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 17);
-    CancelOrderResponseDecoder.validate(response, 0);
-    assertEquals(106, TcpHeaderCodec.messageLength(response, 0));
-    assertEquals(12L, CancelOrderResponseDecoder.quantityMantissa(response, 0));
-    assertEquals(5L, CancelOrderResponseDecoder.totalFilledMantissa(response, 0));
+    for (int version = 17; version <= 19; version++) {
+      response.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) version);
+      CancelOrderResponseDecoder.validate(response, 0);
+      assertEquals(106, TcpHeaderCodec.messageLength(response, 0));
+      assertEquals(12L, CancelOrderResponseDecoder.quantityMantissa(response, 0));
+      assertEquals(5L, CancelOrderResponseDecoder.totalFilledMantissa(response, 0));
+    }
+    response.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 20);
+    assertThrows(
+        StarbaseProtocolException.class, () -> CancelOrderResponseDecoder.validate(response, 0));
 
+    response.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 19);
     response.putShort(TcpHeaderCodec.MESSAGE_LENGTH_OFFSET, (short) 88);
     assertThrows(
         StarbaseProtocolException.class, () -> CancelOrderResponseDecoder.validate(response, 0));

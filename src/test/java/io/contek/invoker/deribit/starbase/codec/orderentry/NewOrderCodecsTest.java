@@ -124,6 +124,80 @@ public final class NewOrderCodecsTest {
     assertEquals(6L, NewOrderResponseDecoder.legQuantityMantissa(frame, 0, 0));
     assertEquals(-3, NewOrderResponseDecoder.legQuantityExponent(frame, 0, 0));
     assertEquals(-1, NewOrderResponseDecoder.legSide(frame, 0, 0));
+    assertFalse(NewOrderResponseDecoder.hasFlags(frame, 0));
+    assertThrows(
+        StarbaseProtocolException.class, () -> NewOrderResponseDecoder.flags(frame, 0));
+  }
+
+  public void testVersionNineteenResponseEchoesFlagsBeforeUnchangedGroups() {
+    ByteBuffer frame = responseFrame(19, 0x13);
+
+    assertEquals(195, TcpHeaderCodec.messageLength(frame, 0));
+    NewOrderResponseDecoder.validate(frame, 0);
+    assertTrue(NewOrderResponseDecoder.hasFlags(frame, 0));
+    assertEquals(0x13, NewOrderResponseDecoder.flags(frame, 0));
+    assertEquals(0, NewOrderResponseDecoder.cancelReason(frame, 0));
+    assertEquals(1, NewOrderResponseDecoder.fillCount(frame, 0));
+    assertEquals(2001L, NewOrderResponseDecoder.fillMatchId(frame, 0, 0));
+    assertEquals(3L, NewOrderResponseDecoder.fillQuantityMantissa(frame, 0, 0));
+    assertEquals(1, NewOrderResponseDecoder.legCount(frame, 0));
+    assertEquals(3002L, NewOrderResponseDecoder.legInstrumentId(frame, 0, 0));
+    assertEquals(-1, NewOrderResponseDecoder.legSide(frame, 0, 0));
+    assertEquals(200, TcpHeaderCodec.validateFrame(frame, 0));
+
+    ByteBuffer allKnown = responseFrame(19, NewOrderRequestEncoder.KNOWN_FLAGS);
+    NewOrderResponseDecoder.validate(allKnown, 0);
+    assertEquals(0x3f, NewOrderResponseDecoder.flags(allKnown, 0));
+    ByteBuffer cappedLegacy = responseFrame(18, 0);
+    NewOrderResponseDecoder.validate(cappedLegacy, 0);
+    assertFalse(NewOrderResponseDecoder.hasFlags(cappedLegacy, 0));
+  }
+
+  public void testVersionNineteenResponseLayoutAndUnknownFlagsFailClosed() {
+    ByteBuffer legacyBodyAtNineteen = responseFrame();
+    legacyBodyAtNineteen.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 19);
+    assertThrows(
+        StarbaseProtocolException.class,
+        () -> NewOrderResponseDecoder.validate(legacyBodyAtNineteen, 0));
+
+    ByteBuffer flagsBodyAtEighteen = responseFrame(19, 0);
+    flagsBodyAtEighteen.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 18);
+    assertThrows(
+        StarbaseProtocolException.class,
+        () -> NewOrderResponseDecoder.validate(flagsBodyAtEighteen, 0));
+
+    ByteBuffer future = responseFrame(19, 0);
+    future.putShort(TcpHeaderCodec.VERSION_OFFSET, (short) 20);
+    assertThrows(
+        StarbaseProtocolException.class, () -> NewOrderResponseDecoder.validate(future, 0));
+
+    for (int unknownBit = 6; unknownBit < 16; unknownBit++) {
+      ByteBuffer unknown = responseFrame(19, 1 << unknownBit);
+      assertThrows(
+          StarbaseProtocolException.class, () -> NewOrderResponseDecoder.validate(unknown, 0));
+    }
+
+    ByteBuffer truncated = responseFrame(19, 0);
+    truncated.putShort(TcpHeaderCodec.MESSAGE_LENGTH_OFFSET, (short) 193);
+    TcpHeaderCodec.zeroPadding(truncated, 0, 193);
+    assertThrows(
+        StarbaseProtocolException.class, () -> NewOrderResponseDecoder.validate(truncated, 0));
+  }
+
+  public void testVersionEighteenCancelOnlyRejectReasonIsAccepted() {
+    ByteBuffer reject = ByteBuffer.allocateDirect(96).order(ByteOrder.LITTLE_ENDIAN);
+    TcpHeaderCodec.encode(reject, 0, 0, 82, 202, 18, 1L, 0L, 1L);
+    reject.put(32 + 48, (byte) 31);
+    reject.put(32 + 49, (byte) 0);
+    TcpHeaderCodec.zeroPadding(reject, 0, 82);
+
+    NewOrderRejectDecoder.validate(reject, 0);
+    assertEquals(31, NewOrderRejectDecoder.reason(reject, 0));
+
+    reject.put(32 + 48, (byte) 32);
+    assertThrows(StarbaseProtocolException.class, () -> NewOrderRejectDecoder.validate(reject, 0));
+    reject.put(32 + 48, (byte) -1);
+    assertThrows(StarbaseProtocolException.class, () -> NewOrderRejectDecoder.validate(reject, 0));
   }
 
   public void testRejectPinsReasonAndVariableAsciiDetails() {
@@ -184,7 +258,7 @@ public final class NewOrderCodecsTest {
 
     ByteBuffer reject = ByteBuffer.allocateDirect(96).order(ByteOrder.LITTLE_ENDIAN);
     TcpHeaderCodec.encode(reject, 0, 0, 82, 202, 11, 1L, 0L, 1L);
-    reject.put(32 + 48, (byte) 31);
+    reject.put(32 + 48, (byte) 32);
     reject.put(32 + 49, (byte) 1);
     reject.put(32 + 50, (byte) 0);
     TcpHeaderCodec.zeroPadding(reject, 0, 82);
@@ -196,27 +270,41 @@ public final class NewOrderCodecsTest {
     NewOrderRequestEncoder.encodeMarket(
         request, 0, 1L, 2L, 3L, 5L, 0, true, 0L, 0L, 1, 0, 0, 0, 1L, 0L, 1L);
     ByteBuffer response = responseFrame();
+    ByteBuffer flagged = responseFrame(19, 0x13);
     ThreadMXBean bean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
     long threadId = Thread.currentThread().threadId();
     for (int iteration = 0; iteration < 1_000_000; iteration++) {
       NewOrderRequestDecoder.validate(request, 0);
       NewOrderResponseDecoder.validate(response, 0);
+      NewOrderResponseDecoder.validate(flagged, 0);
       sink += NewOrderRequestDecoder.quantityMantissa(request, 0);
       sink += NewOrderResponseDecoder.fillMatchId(response, 0, 0);
+      sink += NewOrderResponseDecoder.flags(flagged, 0);
+      sink += NewOrderResponseDecoder.legMatchId(flagged, 0, 0);
     }
     long before = bean.getThreadAllocatedBytes(threadId);
     for (int iteration = 0; iteration < 100_000; iteration++) {
       NewOrderRequestDecoder.validate(request, 0);
       NewOrderResponseDecoder.validate(response, 0);
+      NewOrderResponseDecoder.validate(flagged, 0);
       sink += NewOrderRequestDecoder.quantityMantissa(request, 0);
       sink += NewOrderResponseDecoder.fillMatchId(response, 0, 0);
+      sink += NewOrderResponseDecoder.flags(flagged, 0);
+      sink += NewOrderResponseDecoder.legMatchId(flagged, 0, 0);
     }
     assertEquals(0L, bean.getThreadAllocatedBytes(threadId) - before);
   }
 
   private static ByteBuffer responseFrame() {
+    return responseFrame(11, 0);
+  }
+
+  private static ByteBuffer responseFrame(int version, int flags) {
+    boolean echoesFlags = version >= 19;
+    int rootLength = echoesFlags ? 96 : 94;
+    int messageLength = 32 + rootLength + 4 + 25 + 4 + 34;
     ByteBuffer frame = ByteBuffer.allocateDirect(256).order(ByteOrder.LITTLE_ENDIAN);
-    TcpHeaderCodec.encode(frame, 0, 0, 193, 200, 11, 10L, 9L, 100L);
+    TcpHeaderCodec.encode(frame, 0, 0, messageLength, 200, version, 10L, 9L, 100L);
     int body = 32;
     for (int index = 0; index < 6; index++) {
       frame.putLong(body + index * 8, 1001L + index);
@@ -229,7 +317,10 @@ public final class NewOrderCodecsTest {
     frame.put(body + 91, (byte) 1);
     frame.put(body + 92, (byte) 1);
     frame.put(body + 93, (byte) 0);
-    int fills = body + 94;
+    if (echoesFlags) {
+      frame.putShort(body + 94, (short) flags);
+    }
+    int fills = body + rootLength;
     frame.putShort(fills, (short) 25);
     frame.putShort(fills + 2, (short) 1);
     int fill = fills + 4;
@@ -245,7 +336,7 @@ public final class NewOrderCodecsTest {
     frame.putLong(leg + 16, -10_000_000L);
     Decimal72Codec.put(frame, leg + 24, 6L, -3);
     frame.put(leg + 33, (byte) -1);
-    TcpHeaderCodec.zeroPadding(frame, 0, 193);
+    TcpHeaderCodec.zeroPadding(frame, 0, messageLength);
     return frame;
   }
 }

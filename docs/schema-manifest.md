@@ -3,14 +3,14 @@
 ## Current upstream review and adoption
 
 Reviewed 2026-08-27, revalidated on 2026-08-28 and 2026-09-03, and audited again on
-2026-09-16 and 2026-10-04. The legacy bundle at
+2026-09-16, 2026-10-04, and 2026-10-27. The legacy bundle at
 `https://statics.deribit.com/files/deribit-sbe-xmls.zip` remains SHA-256
 `4B21E0F317B0C62BFDD3C77E0BC125EFD043A71493406FC45A3A00CE64297B42` and still carries
 the older order-entry v12 XML. The current binary reference instead links the direct
 production order-entry XML at
 `https://docs.deribit.com/specifications/deribit-sbe-xmls/deribit-sbe-order-api.xml`:
-schema 2101/version 17/semantic version 1.5, SHA-256
-`6A721ED6161ACFEAD838ACE8D6F4F9A44347C0B293BEB99B9E9ED3D3D57B3B91`. Its v12-v16 delta
+schema 2101/version 19/semantic version 1.5, SHA-256
+`5A1BF2FDE696424CA35F468815D879DF096AC0B14E92A93BEA1BD1C433D58283`. Its v12-v16 delta
 adds schema negotiation in `Logon`/`LogonConf`, session-wide
 `Logon.cancelOnDisconnect` (field 68), `GATEWAY_NOT_ACTIVE` reject reason 6,
 `OrderRejectReason.MMP_MIN_FREEZE_TIME_NOT_ELAPSED` value 30, and
@@ -18,16 +18,19 @@ adds schema negotiation in `Logon`/`LogonConf`, session-wide
 `quantity` and `totalFilled` `Decimal72` fields to `CancelOrderResponse` (220). The
 `OrderId` and `ClientOrderId` types remain `int64`. Version 17 changes only the schema
 version and a comment: the submitting session receives unsolicited `OrdersCanceled` when
-another session cancels its order; no message layout changes. As of 2026-10-04, the direct
-testnet order-entry XML is byte-identical to the production-v17 XML and hash. The direct
-market-data XML remains schema 2102/version 1/semantic version 1.0, SHA-256
+another session cancels its order; no message layout changes. Version 18 adds
+`OrderRejectReason.CANCEL_ONLY` value 31. Version 19 adds `NewOrderResponse` (200) field
+`flags` (`OrderFlags`, uint16) at root offset 94, growing the root block from 94 to 96 bytes
+before the unchanged groups. As of 2026-10-27, the direct testnet order-entry XML is
+byte-identical to the production-v19 XML and hash. The direct market-data XML remains
+schema 2102/version 1/semantic version 1.0, SHA-256
 `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE`.
 
 The current Binary API Reference also clarifies that an inbound server message's header
 `version` is the newest schema version at which that individual message changed, capped at
-the negotiated session version; it is not necessarily the negotiated v17 ceiling. The
+the negotiated session version; it is not necessarily the negotiated v19 ceiling. The
 hardcoded layouts remain pinned correctly, and completed `SPEC-03` now applies
-schema-derived per-message lower bounds plus the pinned-v17 upper bound before exact
+schema-derived per-message lower bounds plus the pinned-v19 upper bound before exact
 layout/body/group validation.
 
 Formal Deribit clarification dated 2026-08-27 establishes that the Starbase REST snapshot's
@@ -45,7 +48,7 @@ URLs and the production/testnet/legacy source hashes are recorded in
 
 | Schema | ID | Version | Semantic version | Checked-in reference | SHA-256 |
 | --- | ---: | ---: | ---: | --- | --- |
-| Order entry | 2101 | 17 | 1.5 | `src/main/resources/schema/deribit-sbe-order-api.xml` | `6A721ED6161ACFEAD838ACE8D6F4F9A44347C0B293BEB99B9E9ED3D3D57B3B91` |
+| Order entry | 2101 | 19 | 1.5 | `src/main/resources/schema/deribit-sbe-order-api.xml` | `5A1BF2FDE696424CA35F468815D879DF096AC0B14E92A93BEA1BD1C433D58283` |
 | Market data | 2102 | 1 | 1.0 | `src/main/resources/schema/deribit-sbe-market-data-api.xml` | `6875032D595D4F92DABE444ACF9DC9E27B27D34C03E2423403D175D87F8CADCE` |
 
 XML files are reference-only; production codecs are hardcoded/bounds-checked, never
@@ -83,17 +86,23 @@ Common framing/dispatch tests: `TcpHeaderCodecTest`, `UdpPacketHeaderCodecTest`,
 
 All listed layouts are unchanged from the originally implemented subset except `Logon`
 (68-byte body), `LogonConfirmation` (6-byte body), and the versioned
-`CancelOrderResponse`. Encoders stamp production v17, and the assembled lifecycle requires
-`LogonConf.schemaVersion` to echo negotiated v17. The dispatcher accepts each template's
-schema-derived compatible version floor through the
-pinned v17 ceiling, while retaining exact template lengths and bounds checks. In
+`CancelOrderResponse` and `NewOrderResponse`. Encoders stamp production v19, and the
+assembled lifecycle requires `LogonConf.schemaVersion` to echo negotiated v19. The
+dispatcher accepts each template's schema-derived compatible version floor through the
+pinned v19 ceiling, while retaining exact template lengths and bounds checks. In
 particular, current `LogonConf`, `Heartbeat`, and `OrderPlaced` layouts accept their
 documented header stamps 12, 0, and 8. `CancelOrderResponse` accepts the legacy 56-byte
-body through v15 and requires the v16/v17 74-byte body with non-null `quantity` and
+body through v15 and requires the v16–v19 74-byte body with non-null `quantity` and
 `totalFilled`; the public lifecycle validates those values against exact local quantity
-and fill state before cancellation. Testnet uses the same v17 XML as production. Unsolicited
-cross-session cancellation uses unchanged template 310/header v5 and compares exact
-identity and cumulative filled quantity without requiring a local cancel correlation.
+and fill state before cancellation. `NewOrderResponse` uses the legacy 94-byte root block
+through header v18 and the 96-byte root block at v19, with echoed `flags` (uint16, bits 0–5
+known) at root offset 94 before the unchanged `fills`/`legs` groups. Reserved flag bits
+fail closed, and the public lifecycle requires an exact match with the retained submitted
+wire flags before placement. `NewOrderReject`/`AmendOrderReject` accept
+`OrderRejectReason` 0–31, including v18 `CANCEL_ONLY`. Testnet uses the same v19 XML as
+production. Unsolicited cross-session cancellation uses unchanged template 310/header v5
+and compares exact identity and cumulative filled quantity without requiring a local
+cancel correlation.
 
 | Template ID | Message | Hardcoded codec(s) | Golden/bounds test |
 | ---: | --- | --- | --- |
@@ -123,7 +132,8 @@ identity and cumulative filled quantity without requiring a local cancel correla
 | 310 | OrdersCanceled | `OrdersCanceledDecoder` | `OrderLifecycleCodecsTest` |
 | 312 | OrderPlaced | `OrderPlacedDecoder` | `OrderLifecycleCodecsTest` |
 
-`OrderEntryMessageDispatcherTest` proves pre-callback validation of all 25 layouts. Other
+`OrderEntryMessageDispatcherTest` proves pre-callback validation of all 25 layouts;
+`NewOrderCodecsTest` pins both `NewOrderResponse` root-block versions. Other
 schema-v11 IDs fail closed; recognition by `OrderEntryTemplateDispatch` does not imply
 codec/behavior support.
 
